@@ -18,15 +18,22 @@ set -euo pipefail
 # the pod is on the wrong CUDA major version -- pick a CUDA 11.x template,
 # not 12.x.
 echo "[1/5] sanity check: CUDA + driver"
-nvidia-smi | head -15
+# `head -15` would close the pipe early and trigger SIGPIPE on nvidia-smi
+# under `set -o pipefail`; emit the device list directly instead.
+nvidia-smi -L
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader || true
 
 echo "[2/5] system deps for ViZDoom"
-sudo apt-get update -qq
-sudo apt-get install -y --no-install-recommends \
+# RunPod containers run as root by default, in which case `sudo` is not
+# installed; fall back to plain apt-get when we already have root.
+if [[ $EUID -eq 0 ]]; then SUDO=""; else SUDO="sudo"; fi
+$SUDO apt-get update -qq
+$SUDO apt-get install -y --no-install-recommends \
     build-essential cmake git pkg-config \
     libboost-all-dev libsdl2-dev libfreetype-dev libgl1-mesa-dev \
     libopenal-dev nasm libjpeg-dev tar zlib1g-dev libbz2-dev \
-    liblzma-dev wget rsync
+    liblzma-dev wget rsync \
+    python3-venv python3-dev
 
 echo "[3/5] python venv"
 python3 -m venv /workspace/venv
