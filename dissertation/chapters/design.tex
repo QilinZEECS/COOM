@@ -1,0 +1,237 @@
+% =============================================================================
+% Chapter 3 -- Design
+% =============================================================================
+\chapter{Design}
+\label{ch:design}
+
+This chapter justifies the methodological choices made before any
+training run was launched. The project is dominated by experimental
+design rather than software design --- the COMP390 handbook
+explicitly permits collapsing this chapter and \Cref{ch:impl} into a
+single ``Methodology'' chapter, but the two are kept separate here
+to make the design rationale legible without the implementation
+detail that would otherwise interleave with it.
+
+\section{Overall Architecture}
+\label{sec:arch}
+
+\Cref{fig:arch} sketches the data flow and the module boundaries.
+The COOM environment library wraps the ViZDoom binary and exposes a
+sequence of Gymnasium-style \texttt{Env} objects. The Continual
+Learning module composes those tasks into a sequence and drives a
+single Soft Actor-Critic agent through them, with the regularisation
+penalty injected by a method-specific subclass of a common base
+class. Every training run writes a \texttt{progress.tsv} file and a
+\texttt{config.json} snapshot of its hyperparameters; the
+reproducibility layer downstream of training reads only those two
+files, with no dependency on any in-process state.
+
+\begin{figure}[t]
+    \centering
+    \fbox{\parbox{0.85\linewidth}{\centering\vspace{1.6cm}\textit{%
+        ViZDoom $\rightarrow$ COOM environments
+        $\rightarrow$ ContinualLearningEnv
+        $\rightarrow$ SAC + regularisation method
+        $\rightarrow$ progress.tsv / config.json
+        $\rightarrow$ reproduction pipeline
+        \vspace{1.6cm}}}}
+    \caption{High-level system architecture. Each arrow is a
+        narrowly typed interface; downstream modules cannot reach
+        back across it.}
+    \label{fig:arch}
+\end{figure}
+
+The deliberate design choice that this picture captures is the
+hard separation between \emph{data generation} (the training
+runs) and \emph{analysis} (everything that produces tables and
+figures). The analysis pipeline is purely a function of the
+recorded logs, so a finding can never depend on a state of the
+training process that is not also written to disk. This makes the
+study reproducible from logs alone, addresses
+requirement~\ref{req:reproduce}, and was non-negotiable from the
+start of the project.
+
+\section{Experimental Design}
+\label{sec:exp_design}
+
+The headline study uses the CO4 task sequence
+(\textsc{Chainsaw}~$\rightarrow$~\textsc{Raise the Roof}~$\rightarrow$%
+~\textsc{Run and Gun}~$\rightarrow$~\textsc{Health Gathering}) at
+$20{,}000$ training steps per task. Four design parameters define
+the study; each is justified below.
+
+\paragraph{Sequence choice.}
+CO4 is the second half of the eight-task Cross-Objective sequence.
+It is the smallest sequence available in COOM that still contains
+heterogeneous objectives (combat, navigation, button-pressing,
+collection), so any forgetting effect that depends on a change of
+objective at a task boundary will be visible. CO8 was rejected
+because the per-task training budget would have to be cut even
+further to fit overnight on a CPU, taking the study out of the
+regime where SAC is even partially trained. Cross-Domain (CD)
+sequences were rejected because their tasks differ only in
+visuals or dynamics, which makes forgetting a less stringent test of
+the regularisation methods.
+
+\paragraph{Per-task budget.}
+The COOM paper uses $200{,}000$ steps per task. This dissertation
+uses $20{,}000$ --- exactly one tenth. The factor was chosen so
+that an entire CO4 run completes in under three hours on the
+reference Apple-Silicon CPU, which is the largest budget that
+permits five sequential runs to fit into a single overnight queue
+(\Cref{nfr:queue}). The factor of ten is also large enough to be
+unambiguously different from the published configuration: any
+finding at this budget cannot be confounded with seed-level
+variance in the published results. This tension --- between a
+budget small enough to study and large enough to support
+non-trivial learning --- is the single most important design
+decision in the project. \Cref{ch:eval} reports that even at this
+budget, three of the four methods do reach a non-trivial success
+rate on at least one task, so the floor is correctly placed.
+
+\paragraph{Method set.}
+The first-stage method set comprises four methods: Fine-Tuning
+(no regularisation), EWC, L2 anchoring, and MAS. The
+unregularised control is essential --- a comparison among
+regularised methods alone cannot answer whether regularisation
+helps. EWC, L2 and MAS are the regularisation family reported
+in the COOM paper. AGEM and VCL are the worst-performing
+methods in the COOM ranking and would not change the ordering,
+and so are dropped from the first-stage set. The hyperparameters
+$\lambda_{\text{EWC}}=250$, $\lambda_{\text{L2}}=10^{5}$,
+$\lambda_{\text{MAS}}=10^{4}$ are inherited verbatim from the
+COOM paper. Re-tuning $\lambda$ at the new budget would have
+collapsed the first-stage study into a sweep over a single
+method and is left to second-stage work
+(\Cref{sec:scope_update}).
+
+\paragraph{Seed budget.}
+EWC is run with three random seeds; the remaining first-stage
+methods are single-seed. The seed allocation is set by the
+clarity of the resulting figures rather than by a fixed
+multi-seed protocol: three seeds are sufficient to draw a
+visible band on the EWC curve, and the headline finding (the
+inversion of the published ranking relative to Fine-Tuning) is
+robust to the inter-seed spread observed in that band, which
+removes the incentive to pay for additional seeds on the other
+methods at the first stage. This is acknowledged as a partial
+satisfaction of \ref{req:variance}; multi-seed runs for the
+remaining methods are part of the second-stage scope below.
+
+\section{Evaluation Metrics}
+\label{sec:metrics}
+
+The COOM paper reports three CL metrics: Average Performance,
+Forgetting and Forward Transfer. Forgetting and Forward Transfer
+both require evaluating the agent on past tasks during training,
+which the COOM repository toggles via the \texttt{--test} flag at
+some additional wall-clock cost. To preserve the overnight queue
+budget the present study runs with \texttt{--no\_test}, and reports
+\emph{training-time} success rate as a proxy. Two derived metrics
+are then computed from the same logs:
+
+\begin{itemize}
+    \item \textbf{Last-five-epoch mean training success rate} per
+        task, averaged across the CO4 tasks. This is the analogue
+        of Average Performance; it is reported in \Cref{tab:avg_perf}.
+    \item \textbf{Within-task drift}, defined as the peak
+        training success during a task minus the last-five-epoch
+        mean within the same task. This decouples the question
+        ``does the agent end the task at the level it reached
+        within the task?'' from the question ``does the agent
+        recover when re-tested later?''. The first question can be
+        answered from training logs alone; the second cannot, and
+        is left to future work with \texttt{--test} enabled.
+\end{itemize}
+
+The substitution of training-time success for held-out evaluation
+is a known threat to validity; it is discussed in
+\Cref{sec:validity}.
+
+\section{Alternatives Considered}
+\label{sec:alts}
+
+\begin{itemize}
+    \item \emph{Longer per-task budget on cloud GPU.}\quad
+        Rejected for cost reasons and to keep the first-stage
+        study in the compute regime that the dissertation
+        actually claims to characterise. Revisited in
+        \Cref{sec:future} as the natural follow-on study.
+    \item \emph{Replay-based methods (A-GEM, ClonEx-SAC) and
+        architecture-based methods (PackNet).}\quad Deferred,
+        not rejected. At the first stage the focus is on the
+        regularisation family because mixing rehearsal or
+        masking into the same comparison would make any
+        observed effect a function of two design choices at
+        once. After the first-stage results were reviewed with
+        the supervisor, these higher-scoring methods were
+        promoted into the second-stage method set
+        (\Cref{sec:scope_update}); the rationale is that any
+        improved EWC variant proposed by this dissertation
+        should be benchmarked against the strongest published
+        non-regularisation method (ClonEx-SAC), not only
+        against its own regularisation peers.
+    \item \emph{Smaller per-task budget ($5{,}000$ or
+        $10{,}000$ steps).}\quad Considered and rejected at
+        pilot time: at those budgets the agent failed to reach
+        non-trivial success on any task, so the comparison
+        would have been between four methods that all return
+        zero. $20{,}000$ was the smallest budget at which the
+        methods were still distinguishable.
+    \item \emph{Held-out evaluation throughout
+        training.}\quad Considered and rejected because enabling
+        \texttt{--test} extends each run by roughly 20\,\%,
+        which breaks the overnight queue budget for five
+        sequential runs. Held-out Forgetting and Forward
+        Transfer are part of the second-stage scope.
+\end{itemize}
+
+\section{Scope Update after Mid-Project Review}
+\label{sec:scope_update}
+
+After the first-stage results were reviewed with the supervisor
+midway through the project, three changes to scope were agreed
+on. The changes are recorded here, rather than absorbed silently
+into earlier paragraphs, so that the marker can see the design
+trajectory.
+
+\paragraph{Sequence and budget unchanged.}
+The CO4 sequence at $20{,}000$ steps per task was confirmed as
+the right setting for both stages. Reducing the sequence
+further or extending the per-task budget would have changed the
+research question; keeping both fixed lets the second-stage
+results be read directly against the first-stage table.
+
+\paragraph{Seed budget set by figure clarity.}
+The supervisor's guidance was that seeds should be allocated
+by what the resulting figures need rather than by a uniform
+protocol: enough seeds for the per-method band to be visible
+and for the qualitative ranking to be defensible, but not so
+many that the queue cost dominates the project. Three seeds for
+each second-stage method is the working target; the figure
+captions in \Cref{ch:eval} record the actual seed count for
+each curve.
+
+\paragraph{Method set broadened.}
+The second-stage method set adds (a) cross-family baselines
+--- ClonEx-SAC \citep{daniels2022clonex} as the strongest
+published memory-based method on COOM and PackNet
+(\citealp{mallya2018packnet}) as the strongest published
+architecture-based method --- and (b) an \emph{improved EWC
+variant} proposed by this dissertation, benchmarked
+head-to-head against the original EWC of
+\citet{kirkpatrick2017ewc} on identical hyperparameters
+otherwise. The two additions address the supervisor's point
+that ``the more baselines, the better'' for a credible
+improved-method evaluation. Within the project window, the
+improved EWC variant has been chosen, implemented and run
+end-to-end (\Cref{sec:ewc_online_impl}, \Cref{sec:ewc_online}):
+the variant is Online EWC \citep{schwarz2018progress}, which
+replaces EWC's additive Fisher accumulation with an
+exponential moving average. This choice was made on the basis
+of the first-stage Fisher-on-noise diagnosis
+(\Cref{sec:fishernoise}), which singles out the unbounded
+growth of accumulated Fisher across tasks as the most direct
+attack surface. The cross-family baselines and the multi-seed
+extension of Online EWC are queued for follow-on work
+(\Cref{sec:future}).

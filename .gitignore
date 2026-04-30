@@ -155,3 +155,20 @@ _vizdoom.ini
 # Results
 /results/data/
 /results/plots/
+
+# LaTeX build artifacts (we ship dissertation/main.pdf but not the
+# intermediate *.aux/*.bbl/etc. that tectonic regenerates on each build)
+*.aux
+*.bbl
+*.blg
+*.lof
+*.lot
+*.out
+*.tdo
+*.toc
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# DOCX byproducts (the .md is the source of truth in results/)
+results/*.docx

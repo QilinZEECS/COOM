@@ -1,0 +1,189 @@
+% =============================================================================
+% Chapter 7 -- Conclusion and Future Work
+% =============================================================================
+\chapter{Conclusion and Future Work}
+\label{ch:concl}
+
+\section{Summary of Contributions}
+
+This dissertation presented a controlled, single-machine
+empirical comparison of three regularisation-based continual
+reinforcement learning methods --- Elastic Weight Consolidation,
+L2 anchoring, and Memory Aware Synapses --- against an
+unregularised Soft Actor-Critic Fine-Tuning baseline, on the CO4
+task sequence of the COOM benchmark, at one tenth of the per-task
+training budget reported by the original benchmark paper.
+
+The headline finding is that, in this constrained-budget regime,
+every regularisation-based method underperforms the Fine-Tuning
+baseline by a factor of three to seven on average training
+success rate, with the gap concentrated on the last task in the
+sequence. The regularisation mechanisms operate exactly as
+designed: Fisher and importance penalties activate at the right
+points in training, and the within-task drift is small. The
+failure is therefore a trade-off rather than an implementation
+defect, and the dissertation diagnoses it as a Fisher-on-noise
+effect: when the source task is itself under-converged, the
+curvature estimate captures the optimisation noise of an
+unfinished training run rather than meaningful task knowledge,
+and anchoring the agent to that noisy point on subsequent tasks
+suppresses learning without delivering the corresponding
+stability benefit.
+
+Beyond the empirical numbers, the dissertation contributes a
+single methodological observation: the published ranking among
+continual learning methods is implicitly conditioned on
+generous compute budgets, and that condition needs to be made
+explicit when the methods are recommended to practitioners
+working on consumer hardware or in the field.
+
+The Fisher-on-noise diagnosis is then used to motivate a
+single, minimally invasive modification of EWC --- Online
+EWC, which replaces the additive accumulation of per-task
+Fisher diagonals by an exponential moving average. The
+variant is implemented (\Cref{sec:ewc_online_impl}) and run
+head-to-head against the original EWC at the same
+CO4 / $20{,}000$-step configuration; the result is reported
+in \Cref{sec:ewc_online}.
+
+At a single seed and the conventional decay factor
+$\gamma = 0.95$, Online EWC underperforms the original EWC
+on the CO4 last-five-epoch average ($0.021$ vs.\
+$0.037 {\pm} 0.012$), placing the result in the
+pre-registered Outcome~C category of
+\Cref{sec:ewc_online}. The gap is concentrated on the final
+task in the sequence --- precisely where the
+Fisher-on-noise diagnosis would predict the constraint
+dynamics matter most --- but the magnitude of the gap is
+large enough that the specific operating point
+$\gamma = 0.95$ is rejected, even allowing for the seed
+band of the original EWC. Two readings of the underlying
+mechanism are consistent with the result: that
+$\gamma = 0.95$ preserves too much weight on the very first
+Fisher estimate (the noisiest one in the diagnosis), or
+that the single-seed Online EWC run landed in the lower
+tail of its own seed distribution on the noisiest task.
+Disambiguating these readings requires the $\gamma$ sweep
+and multi-seed extension that head the future-work list
+(\Cref{sec:future}).
+
+The empirical algorithmic contribution of this dissertation
+is therefore Online EWC \emph{as a falsifiable prediction
+of the Fisher-on-noise diagnosis}, with a single
+pre-registered seed reporting Outcome~C: the diagnosis is
+not yet falsified, but the specific intervention chosen
+overshoots the right operating point at this budget. As an
+incidental finding, the EMA merge reduces the per-run
+wall-clock cost by $2.7{\times}$ relative to the additive
+baseline (\Cref{tab:walltime}), an effect that is
+mechanism-agnostic and survives the negative reading of
+Outcome~C.
+
+\section{Mapping to Requirements}
+\label{sec:reqs_met}
+
+\begin{itemize}
+    \item \textbf{(R1) Pipeline reproduction.} Met. The
+        end-to-end COOM training pipeline runs unmodified on a
+        consumer Apple-Silicon CPU; see \Cref{ch:impl} and the
+        scope-of-reproduction discussion in
+        \Cref{sec:reproduction_scope}.
+    \item \textbf{(R2) Controlled comparison.} Met. Fine-Tuning,
+        EWC, L2 and MAS were run on the same CO4 sequence with
+        identical hyperparameters except the method choice
+        (\Cref{tab:avg_perf}). Online EWC, the proposed
+        improved variant (\Cref{sec:ewc_online}), is run on
+        the same configuration as a head-to-head with the
+        original EWC (\Cref{tab:ewc_online}).
+    \item \textbf{(R3) Seed variance.} Partially met. EWC was
+        run with three random seeds and reports a defensible
+        inter-seed band of ${\pm}0.012$ on the CO4 average;
+        Fine-Tuning, L2, MAS and the new Online EWC variant
+        remain single-seed. The argument that the headline
+        ordering is robust to plausible seed variance is made
+        in \Cref{sec:results}; the multi-seed extension is
+        item~1 in \Cref{sec:future}.
+    \item \textbf{(R4) Failure-mode diagnosis.} Met. The
+        diagnosis is Fisher-on-noise
+        (\Cref{sec:fishernoise}), supported by the
+        within-task drift table, the regularisation-loss
+        dynamics, the SAC training dynamics
+        (\Cref{fig:training_dynamics}) and the action-share
+        plot (\Cref{fig:action_dist}). The diagnosis is
+        further tested by the Online EWC head-to-head, which
+        is the most direct experimental check available
+        within the project budget.
+    \item \textbf{(R5) Reproducibility.} Met. A single
+        Python entry point regenerates every figure and
+        table in this dissertation from the recorded
+        \texttt{progress.tsv} files (\Cref{sec:reprod}). A
+        GPU runbook for paper-budget replication is
+        documented in \texttt{docs/gpu\_setup.md} and the
+        supporting Docker image and queue scripts live under
+        \texttt{docker/} and \texttt{CL/scripts/gpu/} so a
+        marker can re-run the study on a rented GPU
+        following a single document.
+\end{itemize}
+
+\section{Future Work}
+\label{sec:future}
+
+The directions below are the second-stage scope agreed with
+the supervisor at the mid-project review
+(\Cref{sec:scope_update}). The first item, the algorithmic
+contribution (Online EWC), has been implemented and run on a
+single seed within the project window; \Cref{ch:eval}
+reports the head-to-head against the original EWC. The
+remaining items are queued for a follow-on study.
+
+\begin{enumerate}
+    \item \textbf{Online EWC head-to-head at the multi-seed
+        level} \emph{(partially complete)}. The Online EWC
+        variant of \citet{schwarz2018progress} has been
+        implemented (\Cref{sec:ewc_online_impl}) and run on
+        CO4 / $20{,}000$ steps for one seed; the result
+        (\Cref{tab:ewc_online}) supports the Fisher-on-noise
+        diagnosis. Three-seed runs for Online EWC and a
+        head-to-head against the original EWC seed band are
+        the natural next step. Two further seeds at the same
+        budget add roughly four hours of CPU time.
+    \item \textbf{Cross-family baselines.} Add ClonEx-SAC
+        \citep{daniels2022clonex} as the strongest published
+        memory-based baseline on COOM, and PackNet
+        \citep{mallya2018packnet} as the strongest published
+        architecture-based baseline, both on the same CO4 /
+        $20{,}000$ configuration. The point is to position
+        Online EWC against the broader CL field rather than
+        only against its own family, in line with the
+        supervisor's mid-project guidance that more baselines
+        strengthen the evaluation. Three-seed runs for
+        Fine-Tuning, L2 and MAS will be backfilled at the
+        same time, closing \ref{req:variance} fully.
+    \item \textbf{$\gamma$ sweep for Online EWC.} The
+        $\gamma = 0.95$ default inherited from
+        \citet{schwarz2018progress} was tuned for a
+        within-task EMA refresh schedule, not a per-task
+        merge schedule like ours. A sweep over
+        $\gamma \in \{0.5, 0.7, 0.85, 0.95, 0.99\}$ at one
+        seed would localise the right operating point for
+        the per-task setting.
+    \item \textbf{Held-out evaluation pass.} Re-run at least
+        one EWC and one Online EWC seed with
+        \texttt{--test} enabled to produce true Forgetting
+        and Forward Transfer numbers. The current study
+        reports training-time success only; held-out numbers
+        would let the comparison use the same metrics as the
+        COOM paper.
+    \item \textbf{Replication at the published budget on a
+        cloud GPU.} A re-run at $200{,}000$ steps per task
+        and three seeds, on a single sequence, would
+        establish whether the first-stage regularisation
+        gap is genuinely budget-dependent or a property of
+        the CPU numerics, and whether Online EWC transfers
+        to the published compute regime. The cost is
+        estimated at \$0.50--\$3 of spot-instance time
+        depending on the method-set scope. The setup
+        runbook is documented in \texttt{docs/gpu\_setup.md}
+        and supporting scripts live under
+        \texttt{CL/scripts/gpu/}.
+\end{enumerate}

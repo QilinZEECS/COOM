@@ -1,0 +1,147 @@
+% =============================================================================
+% Chapter 8 -- BCS Criteria and Self-Reflection
+% =============================================================================
+\chapter{BCS Criteria and Self-Reflection}
+\label{ch:bcs}
+
+\section{BCS Learning Outcomes Demonstrated}
+
+The British Computer Society accreditation framework requires the
+dissertation to demonstrate the following six learning outcomes.
+Each item below is addressed in the named chapter or section.
+
+\begin{enumerate}[label=\textbf{B\arabic*.},leftmargin=2.4em]
+    \item \textbf{Application of practical and analytical
+        skills.}\quad Practical skills are demonstrated by the
+        end-to-end implementation in \Cref{ch:impl}, which
+        adapts a published GPU-targeted research codebase to a
+        consumer CPU host without changing the comparison
+        semantics. Analytical skills are demonstrated by the
+        diagnostic chain in \Cref{sec:fishernoise}, which moves
+        from a quantitative gap (\Cref{tab:avg_perf}) through a
+        within-task drift control (\Cref{tab:forgetting}) to a
+        mechanistic hypothesis (Fisher on noise) that is itself
+        framed as a falsifiable prediction for future work.
+
+    \item \textbf{Innovation and creativity.}\quad The
+        innovation is methodological rather than algorithmic:
+        the dissertation re-frames a published continual
+        learning benchmark as a study of the implicit compute
+        assumptions in that benchmark, and reports an
+        \emph{inversion} of the published ranking under those
+        assumptions. The Fisher-on-noise diagnosis is, to the
+        author's knowledge, not stated explicitly in the
+        existing CL or COOM literature.
+
+    \item \textbf{Synthesis of information, ideas and
+        practices.}\quad \Cref{sec:background} integrates three
+        threads --- regularisation-based continual learning,
+        the COOM benchmark, and the deep RL plasticity
+        literature --- into a single argument for studying the
+        low-budget regime. The plasticity-loss work
+        \citep{lyle2022plasticity, nikishin2022primacy} is the
+        external thread that motivates the Fisher-on-noise
+        hypothesis; without it the diagnosis would be
+        unmotivated.
+
+    \item \textbf{Real need in a wider context.}\quad On-device,
+        online, and student-scale continual reinforcement
+        learning deployments cannot afford the per-task compute
+        budgets used by published benchmarks. This dissertation
+        surfaces a previously under-discussed failure mode in
+        that operational regime, and the negative-result
+        framing in \Cref{sec:wider} argues directly that the
+        finding is relevant to practitioners.
+
+    \item \textbf{Self-management of the project.}\quad Project
+        management is reflected in the overnight queue
+        infrastructure (\Cref{sec:queue}), the up-front design
+        decisions documented in \Cref{ch:design}, and the
+        handling of the most significant unplanned change ---
+        the decision to commit to a negative-result framing
+        once the data was in --- which is discussed in the
+        self-reflection below.
+
+    \item \textbf{Critical self-evaluation.}\quad The
+        first-person section that follows addresses this
+        criterion explicitly.
+\end{enumerate}
+
+\section{Self-Reflection}
+\label{sec:reflection}
+
+I began this project expecting to reproduce a published
+continual reinforcement learning baseline on commodity
+hardware, and I ended it with a finding that the published
+baselines do not transfer to that hardware regime in the simple
+way I had assumed. The shift from \emph{replication} to
+\emph{negative-result study} was the single most important
+course-correction in the project, and it took me longer than it
+should have to commit to it.
+
+The first weeks of the project were spent on infrastructure: a
+working CPU TensorFlow build of the COOM training loop, an
+overnight experiment queue, a TSV log loader. I expected, when
+the first end-to-end run finished, to see a CO4 success curve
+that looked qualitatively like the COOM paper's headline
+figures. What I saw instead was a Fine-Tuning curve that
+looked broadly reasonable and an EWC curve that flatlined on
+the final task. My instinct was to assume an implementation
+bug. I spent something like a week chasing one --- inspecting
+the Fisher computation, varying the regularisation coefficient,
+checking the replay buffer reset behaviour, comparing the
+training loop step-by-step against the upstream code. Nothing
+came back as broken. The regularisation-loss curve in
+\Cref{fig:lossreg} was, by then, the strongest piece of
+evidence I had that the implementation was correct: the EWC
+penalty fires at exactly the right step counts, with exactly
+the right shape.
+
+The hardest moment of the project was the conversation with
+myself in which I had to accept that the difference from the
+paper was not a bug but a finding. Two things made the
+acceptance slow. The first was sunk cost: I had told myself
+the project was a replication, and turning a replication into
+a negative-result study felt, at the time, like admitting I
+had failed at the original goal. The second was a more
+interesting form of self-doubt: I worried that an undergraduate
+finding that the published benchmark did not hold under
+constrained compute would read as either naive or arrogant,
+depending on the reader. What changed my mind was rereading
+the COOM paper carefully and noticing that it does not, in
+fact, claim its results generalise to lower compute --- the
+absence of such a claim is itself an opening for the question
+this dissertation now asks. The negative-result framing is
+the honest one.
+
+If I were to start the project again, three things would be
+different. First, I would invest in the
+overnight-queue infrastructure on day one rather than during
+the second sprint; the queue is what made the seed band on
+EWC affordable, and without it the seed-variance argument in
+\Cref{sec:results} would be much weaker. Second, I would
+budget multiple seeds for every method from the start rather
+than backfilling them only for EWC; the partial satisfaction
+of \ref{req:variance} is the largest concrete weakness of the
+study and is entirely a planning failure. Third, I would
+commit earlier to a small but well-instrumented experiment
+(CO4, four methods) over a large but thinly-instrumented one
+(CO8, all methods, no seed band). The former is what I ended
+up reporting; the latter is what I drifted into in the first
+half of the project.
+
+What I carry forward is a sharper instinct for when to stop
+debugging and start trusting the data. The Fisher-on-noise
+diagnosis was visible in the regularisation-loss plot for
+weeks before I named it. Empirical research, I now think, is
+mostly about giving yourself permission to draw the
+conclusions your measurements are already pointing at, and the
+reflexive ``it must be a bug'' response is the single most
+expensive habit to unlearn. My view of the continual-learning
+literature has also matured: published rankings are
+conditional on the experimental setup that produced them, and
+in a field where setups vary by orders of magnitude in
+compute, the ranking is best treated as one data point about
+that setup rather than as a property of the methods
+themselves. That is the lesson I want my own future work to
+carry.

@@ -1,0 +1,73 @@
+% =============================================================================
+% Chapter 6 -- Project Ethics
+% =============================================================================
+\chapter{Project Ethics}
+\label{ch:ethics}
+
+The COMP390 handbook requires every dissertation to include an
+explicit ethics chapter, regardless of whether human participants
+were involved. This chapter records the ethics-relevant decisions
+that were made during the project.
+
+\section{Data and Participants}
+
+This dissertation studies the behaviour of reinforcement learning
+agents trained in a simulated game environment. There are no human
+participants, no personal data is processed, and no third-party
+data is collected or redistributed beyond what is bundled with the
+public COOM and ViZDoom releases. The data category and
+participant category recorded on the Statement of Ethical
+Compliance reflect this. No ethics review board approval was
+required, and none was sought.
+
+\section{Wider Implications}
+\label{sec:wider}
+
+Continual reinforcement learning is a dual-use technology.
+Improvements in the field could enable cheaper on-device
+adaptation of beneficial autonomous systems --- domestic
+assistive robots, accessibility tools, energy-management
+controllers --- but the same techniques apply equally to
+autonomous weapons platforms, surveillance agents and other
+applications that the BCS code of conduct identifies as ethically
+fraught.
+
+The contribution of this dissertation is, on balance, a
+\emph{deflationary} one: the negative-result framing argues
+\emph{against} premature deployment of regularisation-based CL
+under the compute conditions a small operator is likely to face.
+That direction is consistent with the precautionary stance taken
+by both the BCS code of conduct, which requires members to act in
+the public interest and to give due regard to the wider impact
+of their work, and the ACM code of ethics, which similarly
+emphasises avoiding harm and acknowledging the limits of one's
+findings. By reporting an inversion of the published ranking at
+reduced compute, the dissertation hopes to lower the probability
+that a deployer mistakes a benchmark headline for evidence of
+real-world readiness.
+
+\section{Use of Generative AI Tools}
+\label{sec:genai}
+
+The COMP390 handbook requires explicit disclosure of any
+generative AI tool use. During the project, generative AI tools
+were used in three bounded ways:
+\begin{itemize}
+    \item \textbf{Editorial assistance} on the prose of this
+        dissertation: rephrasing draft passages and shortening
+        sentences. All claims, all numbers and the argumentative
+        structure of every chapter are the author's own.
+    \item \textbf{Boilerplate code generation} for plotting and
+        log-loading utilities under \texttt{results/plotting/}
+        and \texttt{paper/scripts/}. Generated code was reviewed,
+        tested against the recorded \texttt{progress.tsv} files,
+        and modified before use.
+    \item \textbf{Literature search aids}, used to surface
+        candidate references that were then read and verified
+        against their primary sources before being cited.
+\end{itemize}
+No generative tool was used to design the experiments, to
+choose hyperparameters, to interpret the results, or to write
+the self-reflection in \Cref{ch:bcs}. No generated text was
+included in the final dissertation without authorial review and
+revision.

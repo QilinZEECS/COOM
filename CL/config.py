@@ -25,7 +25,7 @@ def parse_args():
     # Continual learning
     arg("--sequence", type=str, default=None, choices=['CD4', 'CD8', 'CD16', 'CO4', 'CO8', 'CO16', 'COC', 'MIXED'],
         help="Name of the continual learning sequence")
-    arg("--cl_method", type=str, choices=[None, "clonex", "owl", "l2", "ewc", "mas", "vcl", "packnet", "agem"],
+    arg("--cl_method", type=str, choices=[None, "clonex", "owl", "l2", "ewc", "ewc_online", "mas", "vcl", "packnet", "agem"],
         default=None, help="If None, the fine-tuning method will be used")
     arg('--start_from', type=int, default=0, help='Which task to start/continue the training from')
     arg('--num_repeats', type=int, default=1, help='How many times to repeat the sequence')
@@ -126,6 +126,9 @@ def parse_args():
         help="Number of retrain steps after network pruning, which occurs after each task")
     arg("--cl_reg_coef", type=float, default=0.0,
         help="Regularization strength for continual learning methods. Valid for 'l2', 'ewc', 'mas' continual learning methods.")
+    arg("--ewc_gamma", type=float, default=0.95,
+        help="Decay factor for the Online EWC EMA Fisher: F <- gamma*F_old + (1-gamma)*F_new. "
+             "Used by 'ewc_online'; ignored otherwise.")
     arg("--vcl_first_task_kl", type=str2bool, default=False,
         help="If True, use KL regularization also for the first task in 'vcl' continual learning method.")
     arg("--episodic_mem_per_task", type=int, default=0,

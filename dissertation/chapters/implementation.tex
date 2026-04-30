@@ -1,0 +1,272 @@
+% =============================================================================
+% Chapter 4 -- Implementation
+% =============================================================================
+\chapter{Implementation}
+\label{ch:impl}
+
+This chapter documents the implementation choices that are
+specific to this project rather than inherited unchanged from
+the upstream COOM repository \citep{tomilin2024coom}. Three
+choices were load-bearing: the Apple Silicon CPU TensorFlow
+build, the sequential overnight experiment queue, and the
+log-only reproducibility layer. Each is documented in turn. The
+SAC backbone, the four regularisation methods and the
+ViZDoom-Gymnasium glue are reused from the COOM repository
+unmodified, beyond a single version pin on the Gymnasium
+dependency that is recorded in the project history.
+
+\section{Technical Stack}
+\label{sec:stack}
+
+The implementation builds on the COOM benchmark repository
+\citep{tomilin2024coom} and uses TensorFlow~2.11
+\citep{abadi2016tensorflow} with the
+\texttt{tensorflow-probability} extension for the SAC actor.
+ViZDoom~1.3 \citep{kempka2016vizdoom} provides the simulation
+environment and is wrapped by COOM's own
+\texttt{ContinualLearningEnv} class to expose tasks as a sequence
+of Gymnasium-compatible environments.
+
+The single non-trivial choice in this stack is the use of
+TensorFlow's CPU build on Apple Silicon. The published COOM
+training code targets CUDA, and porting to Apple's Metal backend
+(via the \texttt{tensorflow-metal} plugin) was rejected after a
+short pilot showed Metal's mixed-precision kernels did not match
+the float32 numerics of CUDA closely enough to inherit the COOM
+hyperparameters without re-tuning. The CPU build is slower by an
+order of magnitude but has reproducible numerics, which matters
+more than throughput for a comparative study. Empirically a
+single CO4 run at $20{,}000$ steps per task completes in
+$50$--$220$ minutes on an M-series CPU; the variance is mostly
+explained by the per-method cost of computing parameter
+importance at task boundaries (MAS being the slowest and
+Fine-Tuning the fastest).
+
+Python is pinned to 3.10 and the full set of pip-installable
+dependencies is captured in the repository's \texttt{setup.py}.
+The two non-Python dependencies are ViZDoom (a Doom binary
+shipped via PyPI) and the system OpenGL stack on macOS, both of
+which are stable across the duration of the project.
+
+\section{Sequential Experiment Queue}
+\label{sec:queue}
+
+To make the most of a single CPU host without GPU parallelism,
+experiments are scheduled by a small shell wrapper that records
+start time, end time, return code and wall-clock duration to a
+status file. The wrapper is single-threaded by design: running
+two SAC trainers concurrently on the same machine destabilised
+the timing of the ViZDoom screen buffer reader during pilot
+runs, and the comparison-relevant metric --- success rate as a
+function of training steps, not wall-clock time --- has no
+incentive to parallelise.
+
+\begin{code}[language=bash, caption={Sequential CPU experiment
+    queue (excerpt from \texttt{CL/scripts/cpu\_queue.sh}).
+    Each invocation appends a single record to the status file
+    on completion.},label={lst:queue}]
+run() {
+    local tag="$1"; shift
+    local t0=$(date +%s)
+    "$@"
+    local rc=$?
+    local t1=$(date +%s)
+    echo "[$tag] rc=$rc duration=$((t1 - t0))s" >> "$STATUS"
+}
+
+run ft   python CL/run_cl.py --sequence CO4 --seed 1 \
+    --steps_per_env 20000 --no_test --group_id ft_co4_20k_seed1
+run ewc  python CL/run_cl.py --sequence CO4 --seed 1 \
+    --steps_per_env 20000 --no_test \
+    --cl_method ewc --cl_reg_coef 250 \
+    --group_id ewc_co4_20k_seed1
+\end{code}
+
+The full overnight queue covers six runs:
+\{ Fine-Tuning, L2, MAS, EWC \} on seed~1, plus EWC on seeds 2
+and~3 to support the seed band reported in \Cref{tab:avg_perf}.
+The recorded status file (\texttt{queue\_status.txt}) is the
+ground truth for run completion: each line records the
+identifier, the return code, and the wall-clock duration. A
+return code other than zero in this file is the signal that a
+run requires re-execution, and the analysis pipeline refuses to
+read logs from any run that is not present in the file with
+return code zero.
+
+\Cref{tab:walltime} reports the wall-clock cost of each method
+at this sequence length and budget on the reference Apple
+Silicon CPU host. The four-fold spread between the cheapest
+method (L2 at $45$~min) and the most expensive (MAS at
+$220$~min) is dominated by the per-task-boundary importance
+computation, not by SAC training itself; this is consistent
+with the design of MAS, which iterates a sample budget over
+the model output gradient norm at end-of-task. The wall-clock
+table is also the load-bearing evidence that the overnight
+queue (\Cref{nfr:queue}) is feasible only at $20{,}000$ steps
+per task: at the published $200{,}000$-step budget, MAS alone
+would consume more than a day of CPU time per seed.
+
+\begin{table}[t]
+    \centering
+    \caption{Wall-clock time per CO4 run at $20{,}000$ steps
+        per task, on the reference Apple Silicon CPU host.
+        Single-seed values report the run; multi-seed values
+        report mean $\pm$ standard deviation.}
+    \label{tab:walltime}
+    \IfFileExists{tab4_walltime.tex}{%
+        \input{tab4_walltime}%
+    }{%
+        \fbox{\parbox{0.6\linewidth}{\centering\vspace{1cm}%
+            \textit{tab4\_walltime.tex placeholder.}%
+            \vspace{1cm}}}%
+    }
+\end{table}
+
+\section{Online EWC: An Improved Variant}
+\label{sec:ewc_online_impl}
+
+The diagnosis that the failure of EWC at the reduced budget is
+driven by a Fisher matrix that captures source-task optimisation
+noise (\Cref{sec:fishernoise}) suggests a single, minimally
+invasive fix. The canonical formulation
+\citep{kirkpatrick2017ewc} accumulates the per-task Fisher
+diagonals additively across tasks,
+\begin{equation}
+    F^{(t)}_{\mathrm{total}} = \sum_{k=0}^{t} F^{(k)},
+    \label{eq:fisher_sum}
+\end{equation}
+so the regularisation strength grows monotonically with the
+number of tasks seen. Schwarz et al.\
+(\citeyear{schwarz2018progress}) proposed instead to keep an
+exponential moving average of the Fisher diagonal:
+\begin{equation}
+    F^{(t)}_{\mathrm{total}}
+    = \gamma \cdot F^{(t-1)}_{\mathrm{total}}
+      + (1 - \gamma) \cdot F^{(t)}, \quad \gamma \in [0, 1].
+    \label{eq:fisher_ema}
+\end{equation}
+Two consequences follow. First, $F^{(t)}_{\mathrm{total}}$ is
+bounded as the sequence grows, so the regularisation tax
+ceases to scale with the number of tasks. Second, the EMA acts
+as a low-pass filter on per-task Fisher noise: a single
+unusually noisy Fisher estimate at the end of an
+under-converged source task contributes only a fraction
+$1 - \gamma$ of its magnitude to the running estimate, rather
+than the full magnitude under \cref{eq:fisher_sum}. Both
+consequences are exactly what the Fisher-on-noise diagnosis
+predicts as the right intervention.
+
+The implementation is one method override on the existing
+EWC class. The new file \texttt{CL/methods/ewc\_online.py}
+subclasses \texttt{EWC\_SAC} and replaces only the
+Fisher-merge step:
+
+\begin{code}[language=Python, caption={Online EWC: an
+    exponential moving average replaces the additive Fisher
+    accumulation in the original \texttt{EWC\_SAC}.
+    Excerpt from \texttt{CL/methods/ewc\_online.py}.},
+    label={lst:ewconline}]
+class EWCOnline_SAC(EWC_SAC):
+    def __init__(self, cl_reg_coef=1.0, regularize_critic=False,
+                 ewc_gamma=0.95, **kwargs):
+        super().__init__(cl_reg_coef=cl_reg_coef,
+                         regularize_critic=regularize_critic,
+                         **kwargs)
+        self.ewc_gamma = float(ewc_gamma)
+        self._fisher_initialised = False
+
+    def _merge_weights(self, new_weights):
+        if not self._fisher_initialised:
+            # First merge: install F_1 directly via the same
+            # broadcast addition the baseline uses.
+            merged = list(old + new for old, new in
+                          zip(self.reg_weights, new_weights))
+            self._fisher_initialised = True
+        else:
+            g = self.ewc_gamma
+            merged = list(g * old + (1.0 - g) * new
+                          for old, new in
+                          zip(self.reg_weights, new_weights))
+        for old_w, new_w in zip(self.reg_weights, merged):
+            old_w.assign(new_w)
+\end{code}
+
+The class is registered in the \texttt{CLMethod} enum of
+\texttt{CL/run\_cl.py} and exposed through a single new
+command-line flag \texttt{-{}-ewc\_gamma}, defaulting to $0.95$
+on the recommendation of \citet{schwarz2018progress}. All
+other hyperparameters are inherited from the original EWC
+configuration verbatim, so the only difference between an
+EWC run and an Online EWC run is the merge rule of
+\cref{eq:fisher_sum} versus \cref{eq:fisher_ema}.
+
+\section{Reproducibility Layer}
+\label{sec:reprod}
+
+Every figure and table in this dissertation is regenerated from
+the recorded training logs by a single Python entry point. The
+entry point reads only \texttt{progress.tsv} and
+\texttt{config.json} files from each run directory, with no
+dependency on TensorFlow checkpoints or in-process state. This
+satisfies requirement~\ref{req:reproduce} and means a marker can
+verify the headline numbers without re-running the training
+queue.
+
+The TSV loader handles a quirk of the upstream COOM code: as
+training progresses, additional metric columns can be appended
+to the right-hand side of \texttt{progress.tsv} but the header
+line is written once at the start. The loader pads the column
+list with synthetic names before the read, then projects back to
+the original schema:
+
+\begin{code}[language=Python, caption={Loader for COOM TSV
+    training logs, handling the trailing-tab schema growth.
+    See \Cref{lst:loader} in the appendix for the full
+    implementation.},label={lst:loadersnippet}]
+def load_run(group_dir):
+    path = latest_progress(group_dir)
+    with path.open() as f:
+        header = f.readline().rstrip('\n').split('\t')
+    names = header + [f"_pad{i}" for i in range(20)]
+    df = pd.read_csv(path, sep='\t', skiprows=1, names=names,
+                     engine='c', index_col=False)
+    return df[header]
+\end{code}
+
+\section{Dependency Pinning}
+\label{sec:pinning}
+
+Because the CPU TensorFlow build is the load-bearing platform
+choice (\Cref{sec:stack}), every Python dependency that
+participates in a numerical computation is pinned. The pins live
+in \texttt{setup.py} at the repository root; the values used to
+produce the results in this dissertation were
+TensorFlow~$2.11.0$, \texttt{tensorflow-probability}~$0.19.0$,
+ViZDoom~$1.3.0$, \texttt{gymnasium}~$0.28.1$, and NumPy~$1.23.5$.
+The \texttt{gymnasium} pin in particular is a project-specific
+addition: the upstream COOM repository was originally written
+against the now-deprecated \texttt{gym} package, and a small
+shim was required to keep the existing environment registration
+calls working under \texttt{gymnasium}. The pin was committed in
+the \texttt{Specified gymnasium version} commit
+on the project's \texttt{main} branch.
+
+\section{Logging and Naming}
+\label{sec:logging}
+
+Each training run writes its outputs into a \texttt{group\_id}
+directory named after the method, sequence, budget and seed, for
+example \texttt{ewc\_co4\_20k\_seed1}. Within that directory a
+timestamped sub-directory holds the actual logs, so re-running a
+configuration appends rather than overwrites. This convention is
+inherited from the Continual World provenance of the COOM
+repository \citep{wolczyk2021cwsac} and is preserved here
+without modification, because changing it would invalidate the
+existing analysis scripts.
+
+The Weights \& Biases \citep{wandb} integration shipped with the
+upstream code is left in place but disabled by default in the
+overnight queue: experiment tracking on a metered home internet
+connection is not worth the bandwidth, and the local
+\texttt{progress.tsv} files are sufficient for every figure
+and table in this dissertation.

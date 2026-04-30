@@ -1,0 +1,55 @@
+# =============================================================================
+#  COOM GPU image for paper-budget reproduction runs.
+#  Pinned to CUDA 11.2 + cuDNN 8.1 because TensorFlow 2.11 (the version this
+#  repo's setup.py pins) only supports CUDA 11.2 on Linux GPU. Newer CUDA
+#  versions (11.8 / 12.x) silently fall back to CPU and break the comparison.
+#
+#  Build:    docker build -f docker/Dockerfile.gpu -t coom-gpu:tf211 .
+#  Push:     docker push <your-handle>/coom-gpu:tf211
+#  RunPod:   point a custom-template at the pushed image; mount /workspace.
+# =============================================================================
+FROM nvidia/cuda:11.2.2-cudnn8-runtime-ubuntu20.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV TZ=Etc/UTC
+
+# ---- system deps for ViZDoom + Python build chain --------------------------
+# The non-Python list is what ViZDoom asks for at install time; without
+# `cmake`, `g++` and the SDL2/Boost/freetype dev headers, the wheel build of
+# vizdoom fails with cryptic linker errors.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential cmake git pkg-config \
+        python3.10 python3.10-dev python3.10-venv python3-pip \
+        libboost-all-dev libsdl2-dev libfreetype-dev libgl1-mesa-dev \
+        libopenal-dev nasm libjpeg-dev tar zlib1g-dev libbz2-dev \
+        liblzma-dev wget rsync ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN ln -sf /usr/bin/python3.10 /usr/bin/python && \
+    ln -sf /usr/bin/python3.10 /usr/bin/python3 && \
+    python -m pip install --upgrade pip setuptools wheel
+
+# ---- Python deps (TF 2.11 / TFP 0.19 / ViZDoom 1.3) ------------------------
+# Install in two stages so that a TF wheel mismatch surfaces before ViZDoom
+# and we don't waste a 400 MB layer on a doomed image.
+RUN pip install --no-cache-dir \
+        "tensorflow==2.11" \
+        "tensorflow-probability==0.19" \
+        "numpy<2" \
+        "pandas" "matplotlib" "seaborn" "scipy==1.11.4" \
+        "gymnasium==0.28.1" "opencv-python" \
+        "wandb"
+
+RUN pip install --no-cache-dir "vizdoom"
+
+# ---- COOM repo --------------------------------------------------------------
+WORKDIR /workspace
+COPY . /workspace/COOM
+RUN pip install --no-cache-dir -e /workspace/COOM
+
+# ---- entrypoint -------------------------------------------------------------
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["bash"]

@@ -1,0 +1,90 @@
+% =============================================================================
+% Chapter 2 -- Requirements Analysis
+% This project is an empirical study of CL methods, not a software-engineering
+% deliverable with end users. Per the COMP390 handbook, this chapter is
+% written briefly and explicitly justifies why the conventional
+% stakeholder/FR/NFR breakdown is reframed for a research project.
+% =============================================================================
+\chapter{Requirements Analysis}
+\label{ch:reqs}
+
+\section{Scoping Note}
+
+The COMP390 handbook permits two styles of dissertation: a
+software-engineering deliverable for an identifiable client, and a
+piece of empirical or theoretical research. This dissertation belongs
+to the second category: there is no external client and no software
+artefact intended for end-user consumption. The deliverables are an
+experimental study and a documented reproduction pipeline. The
+requirements are therefore framed in research terms, but they retain
+the structural separation between \emph{what must be true of the
+study} (the numbered Requirements R1--R5 from
+\Cref{sec:aims}) and \emph{what must be true of the artefact that
+supports the study} (the functional and non-functional
+requirements below).
+
+\section{Stakeholders}
+\label{sec:stakeholders}
+
+\begin{itemize}
+    \item \textbf{The author}, who is graded on whether the
+        artefact and the writing meet the COMP390 marking criteria.
+    \item \textbf{The supervisor and second marker}, who assess the
+        rigour of the experimental design and the honesty of the
+        reporting.
+    \item \textbf{Future students or practitioners} who, having read
+        the published COOM benchmark, want to know whether they can
+        replicate the headline numbers on their own consumer hardware
+        before committing to a cloud GPU budget. This is the audience
+        for the negative-result framing.
+\end{itemize}
+
+\section{Functional Requirements}
+
+These describe the \emph{artefact} that supports the empirical study;
+the research-level requirements (R1--R5) are stated in
+\Cref{sec:aims}.
+
+\begin{enumerate}[label=\textbf{FR\arabic*.},leftmargin=2.6em]
+    \item \label{fr:run}
+        The system shall run the COOM training loop end-to-end on a
+        single Apple-Silicon CPU host, with no GPU dependency.
+    \item \label{fr:methods}
+        The system shall expose all four method choices used in this
+        study --- Fine-Tuning, EWC, L2 and MAS --- through a single
+        command-line entry point.
+    \item \label{fr:logs}
+        The system shall record per-epoch training metrics in a
+        machine-readable form (a tab-separated values file) suitable
+        for downstream analysis.
+    \item \label{fr:reproduce}
+        The system shall regenerate every figure and table in this
+        dissertation from the recorded logs without manual
+        intervention.
+\end{enumerate}
+
+\section{Non-Functional Requirements}
+
+\begin{enumerate}[label=\textbf{NFR\arabic*.},leftmargin=3em]
+    \item \label{nfr:wallclock}
+        A single CO4 run at $20{,}000$ steps per task shall complete
+        in under three hours wall-clock on the reference hardware
+        (Apple M-series CPU, 16~GiB RAM).
+    \item \label{nfr:queue}
+        Five sequential CO4 runs shall be schedulable as an
+        unattended overnight job.
+    \item \label{nfr:dependencies}
+        All Python and system dependencies shall be pinned to
+        specific versions to remove ``works on my machine'' as an
+        explanation for any observed difference from the COOM paper.
+\end{enumerate}
+
+\section{Method of Elicitation}
+
+The research-level requirements R1--R5 were derived from the COMP390
+project proposal and refined in supervisor meetings as the project
+moved from a planned positive-result replication to the negative
+result reported here. The functional and non-functional requirements
+above were derived from the COOM repository's documented usage and
+from constraints imposed by the absence of GPU hardware. No external
+stakeholders were interviewed.

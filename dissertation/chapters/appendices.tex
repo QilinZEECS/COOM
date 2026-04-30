@@ -1,0 +1,102 @@
+% =============================================================================
+% Appendices
+% Only the slots relevant to this empirical study are kept. Consent forms and
+% questionnaires are not included because the project has no human
+% participants (see project_ethics.tex).
+% =============================================================================
+\appendix
+
+\chapter{Installation and Reproduction Guide}
+\label{app:install}
+
+The full reproduction pipeline used to generate every figure
+and table in this dissertation is documented at the project
+repository root. The short version is:
+
+\begin{code}[language=bash, caption={End-to-end reproduction
+    commands.}, label={lst:reproduce}]
+git clone https://github.com/[your-handle]/COOM.git
+cd COOM
+conda env create -f environment.yml   # or follow setup.py
+conda activate coom
+
+# Run all five experiments sequentially (~10 hours on Apple-Silicon CPU)
+bash CL/scripts/cpu_queue.sh
+
+# Regenerate figures and tables
+PYTHONPATH=. python paper/scripts/make_figures.py
+\end{code}
+
+The reproduction has three external dependencies: a working
+ViZDoom binary (shipped via PyPI, installed automatically by
+\texttt{pip install .}), the OpenGL stack provided by macOS
+itself, and roughly $10$~hours of wall-clock time on an
+M-series CPU. No GPU is required and no cloud account is
+required.
+
+The figures and tables produced by
+\texttt{paper/scripts/make\_figures.py} are written into the
+\texttt{paper/figs/} and the project root, with names that match
+the \texttt{\textbackslash input} commands in the corresponding
+chapters. Re-running the script does not invalidate any
+previously rendered PDF, because both the figure files and the
+TSV inputs are content-addressed by the run identifier.
+
+\chapter{Selected Code Listings}
+\label{app:code}
+
+The two listings below are reproduced because both are
+load-bearing for the dissertation: the first for the analysis
+pipeline that satisfies \ref{req:reproduce}, the second for the
+overnight queue infrastructure described in \Cref{sec:queue}.
+
+\begin{code}[language=Python, caption={Loader for COOM TSV
+    training logs, handling the trailing-tab schema growth that
+    arises when the upstream code appends new metric columns
+    mid-run.}, label={lst:loader}]
+def load_run(group_dir):
+    path = latest_progress(group_dir)
+    with path.open() as f:
+        header = f.readline().rstrip('\n').split('\t')
+    names = header + [f"_pad{i}" for i in range(20)]
+    df = pd.read_csv(path, sep='\t', skiprows=1, names=names,
+                     engine='c', index_col=False)
+    return df[header]
+\end{code}
+
+\begin{code}[language=bash, caption={Full overnight CPU
+    experiment queue, recording start time, return code and
+    duration to a status file.}, label={lst:queuefull}]
+#!/usr/bin/env bash
+set -u
+STATUS=CL/logs/queue_status.txt
+LOG=CL/logs/queue_run.log
+
+run() {
+    local tag="$1"; shift
+    local t0=$(date +%s)
+    echo "[$(date '+%F %T')] START $tag :: $*" | tee -a "$STATUS"
+    "$@" >> "$LOG" 2>&1
+    local rc=$?
+    local t1=$(date +%s)
+    echo "[$(date '+%F %T')] DONE  $tag :: rc=$rc  duration=$((t1 - t0))s" \
+        | tee -a "$STATUS"
+}
+
+run ft_seed1   python CL/run_cl.py --sequence CO4 --seed 1 \
+    --steps_per_env 20000 --no_test --group_id ft_co4_20k_seed1
+run l2_seed1   python CL/run_cl.py --sequence CO4 --seed 1 \
+    --steps_per_env 20000 --no_test \
+    --cl_method l2 --cl_reg_coef 100000 --group_id l2_co4_20k_seed1
+run mas_seed1  python CL/run_cl.py --sequence CO4 --seed 1 \
+    --steps_per_env 20000 --no_test \
+    --cl_method mas --cl_reg_coef 10000 --group_id mas_co4_20k_seed1
+run ewc_seed2  python CL/run_cl.py --sequence CO4 --seed 2 \
+    --steps_per_env 20000 --no_test \
+    --cl_method ewc --cl_reg_coef 250 --group_id ewc_co4_20k_seed2
+run ewc_seed3  python CL/run_cl.py --sequence CO4 --seed 3 \
+    --steps_per_env 20000 --no_test \
+    --cl_method ewc --cl_reg_coef 250 --group_id ewc_co4_20k_seed3
+
+echo "[$(date '+%F %T')] QUEUE COMPLETE" | tee -a "$STATUS"
+\end{code}

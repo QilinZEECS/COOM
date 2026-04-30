@@ -1,0 +1,47 @@
+% =============================================================================
+% Title Page
+% Personal page: name + student ID appear ON the page.
+% Page header/footer are empty (set by \pagestyle{personal}).
+% =============================================================================
+\thispagestyle{personal}
+\begin{titlepage}
+    \centering
+    \vspace*{1cm}
+
+    % --- University logo placeholder ---------------------------------------
+    % Replace figures/uol_logo.pdf (or .png) with the official mark.
+    % \includegraphics[width=0.45\linewidth]{uol_logo}
+    \fbox{\parbox{0.45\linewidth}{\centering\vspace{1.5cm}
+        \textit{University of Liverpool logo placeholder}\vspace{1.5cm}}}\par
+
+    \vspace{1.6cm}
+    {\large\bfseries University of Liverpool\par}
+    {\large School of Electrical Engineering, Electronics and Computer
+        Science\par}
+
+    \vspace{1.4cm}
+    {\large COMP390 -- Honours Year Project\par}
+
+    \vfill
+    \rule{\linewidth}{0.4pt}\par
+    \vspace{0.6cm}
+    {\Huge\bfseries \projecttitle\par}
+    \vspace{0.6cm}
+    \rule{\linewidth}{0.4pt}\par
+    \vfill
+
+    \begin{tabular}{rl}
+        \textit{Author:}     & \studentname    \\[2pt]
+        \textit{Student ID:} & \studentid       \\[2pt]
+        \textit{Degree:}     & \degree          \\[2pt]
+        \textit{Supervisor:} & \supervisorname  \\[2pt]
+        \textit{Assessor:}   & \moduleassessor  \\
+    \end{tabular}
+
+    \vspace{1.4cm}
+    {\large \submissiondate\par}
+
+    \vspace{0.5cm}
+    \emph{A dissertation submitted in partial fulfilment of the
+    requirements for the degree of \degree.}
+\end{titlepage}

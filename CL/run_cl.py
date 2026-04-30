@@ -8,6 +8,7 @@ import tensorflow as tf
 from CL.methods.agem import AGEM_SAC
 from CL.methods.clonex import ClonExSAC
 from CL.methods.ewc import EWC_SAC
+from CL.methods.ewc_online import EWCOnline_SAC
 from CL.methods.l2 import L2_SAC
 from CL.methods.mas import MAS_SAC
 from CL.methods.owl import OWL_SAC
@@ -29,6 +30,7 @@ class CLMethod(Enum):
     SAC = (SAC, [])
     L2 = (L2_SAC, ['cl_reg_coef', 'regularize_critic'])
     EWC = (EWC_SAC, ['cl_reg_coef', 'regularize_critic'])
+    EWC_ONLINE = (EWCOnline_SAC, ['cl_reg_coef', 'regularize_critic', 'ewc_gamma'])
     MAS = (MAS_SAC, ['cl_reg_coef', 'regularize_critic'])
     VCL = (VCL_SAC, ['cl_reg_coef', 'regularize_critic', 'vcl_first_task_kl'])
     PACKNET = (PackNet_SAC, ['regularize_critic', 'packnet_retrain_steps'])

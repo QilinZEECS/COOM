@@ -1,0 +1,144 @@
+% =============================================================================
+%  DRAFT-ONLY CHAPTER -- DELETE BEFORE FINAL SUBMISSION
+%
+%  This chapter is a working punch-list of items still outstanding on the
+%  dissertation. It is included in main.tex via a single \include line and
+%  is meant to be removed when the document is submitted. To remove it:
+%
+%    1.  Comment out (or delete) the line `\include{chapters/todo_tracker}`
+%        in main.tex.
+%    2.  Optionally delete this file entirely.
+%
+%  Do not cite anything from this chapter elsewhere in the dissertation:
+%  no \label here is referenced from any other chapter, by design.
+% =============================================================================
+\chapter*{TODO --- Outstanding Work (Draft Only)}
+\thispagestyle{anonymous}
+\addcontentsline{toc}{chapter}{TODO --- Outstanding Work (Draft Only)}
+
+\begin{center}
+    \fbox{\parbox{0.9\linewidth}{%
+        \centering\bfseries
+        This chapter must be removed before final submission. See the
+        comment block at the top of \texttt{chapters/todo\_tracker.tex}
+        for the one-line change in \texttt{main.tex} that disables it.
+    }}
+\end{center}
+
+\section*{Personal Front-Matter Fields}
+
+\begin{itemize}
+    \item Set \texttt{\textbackslash studentname} in \texttt{main.tex}
+        (currently empty so the marker-blind pages compile cleanly).
+    \item Set \texttt{\textbackslash studentid} in \texttt{main.tex}
+        (currently the placeholder \texttt{201600000}).
+    \item Set \texttt{\textbackslash supervisorname} in
+        \texttt{main.tex} (currently \texttt{TODO Supervisor Name}).
+    \item Set \texttt{\textbackslash moduleassessor} in
+        \texttt{main.tex} (currently
+        \texttt{TODO Second Marker / Assessor}).
+    \item Verify the data and participant category codes
+        (\texttt{A0/A0}) in \texttt{chapters/ethical\_compliance.tex}
+        against the latest COMP390 handbook.
+\end{itemize}
+
+\section*{Figures Still on Placeholders}
+
+\begin{itemize}
+    \item \texttt{figures/architecture.pdf} for
+        \Cref{fig:arch} in \Cref{ch:design} --- currently an ASCII
+        \texttt{\textbackslash fbox} placeholder. Draw the
+        ViZDoom~$\rightarrow$~COOM~$\rightarrow$~SAC pipeline in TikZ
+        or export from draw.io; expected size $\sim 0.85$\,linewidth.
+\end{itemize}
+
+\section*{Second-Stage Algorithmic Work}
+
+The supervisor's mid-project feedback set the second-stage scope
+(\Cref{sec:scope_update}). Items below execute that scope.
+
+\begin{itemize}
+    \item Implement \texttt{CL/methods/ewc\_online.py}: subclass
+        \texttt{Regularization\_SAC}, override \texttt{\_merge\_weights}
+        with the EMA rule
+        $F \leftarrow \gamma F_{\text{old}} + (1 - \gamma) F_{\text{new}}$.
+        Add \texttt{--ewc\_gamma} to \texttt{config.py}, default 0.95.
+        Register \texttt{ewc\_online} in the \texttt{CLMethod} enum
+        in \texttt{run\_cl.py}.
+    \item Optionally also implement
+        \texttt{CL/methods/ewc\_layerwise.py} (per-layer~$\lambda$ for
+        CNN encoder, shared MLP, task-specific heads).
+    \item Smoke-test the new method on CO4 / $20{,}000$ steps /
+        seed~1 and verify \texttt{progress.tsv} contains a non-zero
+        \texttt{train/loss\_reg} from task~1 onward.
+\end{itemize}
+
+\section*{Second-Stage Experimental Runs}
+
+\begin{itemize}
+    \item \emph{Improved EWC vs original EWC head-to-head.} Run
+        \texttt{ewc\_online} (and/or \texttt{ewc\_layerwise}) at
+        CO4 / $20{,}000$ for seeds $\{1,2,3\}$. Original EWC at the
+        same seeds is already on disk and can be reused.
+    \item \emph{Cross-family baselines.} Run ClonEx-SAC at CO4 /
+        $20{,}000$ for seeds $\{1,2,3\}$. Run PackNet at CO4 /
+        $20{,}000$ for seeds $\{1,2,3\}$.
+    \item \emph{Backfill seed band on R3.} Run Fine-Tuning, L2 and
+        MAS at seeds 2 and 3 to close requirement~\ref{req:variance}
+        fully.
+    \item \emph{Held-out evaluation pass.} Re-run at least one EWC
+        and one improved-EWC seed with \texttt{--test} enabled, to
+        produce true Forgetting and Forward Transfer numbers (the
+        present study reports training-time success only;
+        \Cref{sec:validity}).
+\end{itemize}
+
+\section*{Optional Cloud Replication}
+
+\begin{itemize}
+    \item Rent a single RTX 3090 on RunPod ($\sim$\$15--30) and
+        replicate the EWC vs improved-EWC head-to-head at the
+        published budget of $200{,}000$ steps per task with three
+        seeds. This is the most direct test of the
+        Fisher-on-noise diagnosis (\Cref{sec:fishernoise}) and the
+        item~4 in the future-work list (\Cref{sec:future}).
+\end{itemize}
+
+\section*{Writing Backfill After Second-Stage Runs}
+
+\begin{itemize}
+    \item Add an algorithm description of the improved EWC
+        variant(s) to \Cref{ch:impl}, with a small code listing.
+    \item Add a results subsection to \Cref{ch:eval} for the
+        head-to-head against original EWC (table + curve figure).
+    \item Add a results subsection to \Cref{ch:eval} for the
+        cross-family baseline comparison (extend
+        \Cref{tab:avg_perf} with ClonEx and PackNet rows).
+    \item Adjust the abstract and the \Cref{ch:intro} narrative
+        from a pure first-stage negative-result framing to a
+        ``negative result $\rightarrow$ targeted fix $\rightarrow$
+        improved variant'' arc, once the second-stage numbers are
+        in.
+    \item Update the requirements mapping in
+        \Cref{sec:reqs_met}: once Fine-Tuning, L2 and MAS have
+        three-seed runs, R3 changes from ``partially met'' to
+        ``met''.
+\end{itemize}
+
+\section*{House-Keeping Before Submission}
+
+\begin{itemize}
+    \item Re-run \texttt{paper/scripts/make\_figures.py} after
+        every new run is added, and re-copy the outputs into
+        \texttt{dissertation/figures/} and
+        \texttt{dissertation/tab*.tex}.
+    \item Squash the five overfull-\texttt{hbox} warnings reported
+        by \texttt{tectonic} (long URLs and compound words in
+        \Cref{ch:intro}, \Cref{ch:design},
+        \Cref{ch:eval} and \Cref{ch:concl}).
+    \item Verify every \texttt{\textbackslash citep} resolves
+        without a \texttt{??}{} marker in the rendered PDF.
+    \item \textbf{Delete this chapter:} comment out
+        \texttt{\textbackslash include\{chapters/todo\_tracker\}}
+        in \texttt{main.tex} and re-run \texttt{tectonic main.tex}.
+\end{itemize}

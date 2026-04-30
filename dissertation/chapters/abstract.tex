@@ -1,0 +1,65 @@
+% =============================================================================
+% Abstract
+% One page maximum. Two or three paragraphs. Should answer:
+%   1. What problem does the project address?
+%   2. What approach was taken?
+%   3. What is the headline result / contribution?
+% Do NOT cite anything in the abstract.
+% =============================================================================
+\cleardoublepage
+\chapter*{Abstract}
+\thispagestyle{anonymous}
+\addcontentsline{toc}{chapter}{Abstract}
+
+Continual reinforcement learning seeks to train a single agent across a
+sequence of related tasks without erasing earlier skills.
+Regularisation based methods such as Elastic Weight Consolidation (EWC),
+L2 anchoring and Memory Aware Synapses (MAS) are the standard
+baselines on benchmarks such as the Doom-based COOM benchmark, but
+their reported effectiveness has only been established under generous
+training budgets that are unavailable on consumer hardware.
+
+This dissertation investigates the inverse regime that arises in
+resource constrained deployments: each task is allocated only one tenth
+of the training steps reported in the original COOM benchmark. Under
+this constraint the project compares EWC, L2 and MAS against an
+unregularised Fine Tuning control on the CO4 task sequence of COOM, on
+a consumer grade Apple Silicon CPU. EWC is run with three random
+seeds; the remaining methods are single seed. Hyperparameters are
+inherited from the COOM paper.
+
+The headline finding is that all three regularisers
+\emph{underperform} the Fine Tuning control by a factor of three to
+seven on average training success rate, with the gap concentrated on
+the final task in the sequence. Inspection of the regularisation
+losses confirms that the Fisher and importance penalties activate as
+designed; the failure is therefore a trade-off rather than an
+implementation defect. The dissertation diagnoses the underlying
+mechanism --- a ``Fisher on noise'' effect in which the source task
+curvature estimate encodes the optimisation noise of an
+under-converged source task rather than learned competence --- and
+argues for compute aware continual learning methods that schedule
+regularisation strength by the realised training budget.
+
+As a direct test of this diagnosis the dissertation proposes
+\emph{Online EWC}: a one-line modification of EWC that
+replaces the additive Fisher accumulation across tasks with
+an exponential moving average. The variant is run on the
+same CO4 / $20{,}000$-step configuration as the baseline EWC
+with identical hyperparameters except for the merge rule.
+At a single seed and the conventional decay factor
+$\gamma = 0.95$, Online EWC underperforms the original EWC
+on the CO4 average (a pre-registered Outcome~C), with the
+gap concentrated on the final task --- exactly where the
+Fisher-on-noise diagnosis predicted constraint dynamics
+matter most. The diagnosis is therefore not yet falsified;
+the specific operating point $\gamma = 0.95$ is. A
+$\gamma$-sweep and a multi-seed extension are queued as
+follow-on work. As an incidental but useful finding, the
+EMA merge cuts the per-run wall-clock cost by $2.7{\times}$
+relative to the additive baseline.
+
+\medskip
+\noindent\textbf{Keywords:} continual learning, reinforcement learning,
+catastrophic forgetting, COOM, ViZDoom, Elastic Weight Consolidation,
+plasticity--stability trade-off.

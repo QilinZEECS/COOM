@@ -1,0 +1,188 @@
+% =============================================================================
+% Chapter 1 -- Introduction
+% Handbook guidance:
+%   * Frame the real-world problem in plain language.
+%   * Provide enough background that a non-specialist can follow.
+%   * State Aims & Requirements as a NUMBERED list. Subsequent chapters
+%     refer back to (R1), (R2), ... when reporting how each was met.
+% =============================================================================
+\chapter{Introduction}
+\label{ch:intro}
+
+An autonomous agent that is deployed once and never updated is rare:
+in any setting where the world changes, the agent must keep learning
+after the laboratory training run is over. A household robot
+encounters new room layouts; a recommender meets new content
+categories; a game-playing agent is asked to handle a patch that
+changed the level. The natural way to extend a trained agent is to
+keep training it on whatever new data arrives. The catch is that a
+neural network trained on the new data alone tends to overwrite its
+old skills almost immediately --- a phenomenon known as
+\emph{catastrophic forgetting} \citep{french1999catastrophic,
+kirkpatrick2017ewc}. The field of \emph{continual learning} (CL)
+studies practical remedies for this failure mode.
+
+A second, more pragmatic constraint is rarely discussed in published
+benchmarks but dominates real deployments: \emph{compute}. Continual
+RL benchmarks today report headline numbers obtained on multi-GPU
+clusters with hundreds of thousands of environment steps per task. A
+student replicating these numbers on a laptop, or a practitioner
+fine-tuning a deployed model in the field, will not have that budget.
+This dissertation asks the natural follow-on question: \emph{do the
+ranking and the qualitative behaviour of standard continual RL methods
+hold when the per-task compute budget is reduced by an order of
+magnitude?}
+
+The vehicle for the study is the COOM benchmark of
+\citet{tomilin2024coom}, a continual reinforcement learning suite of
+ViZDoom \citep{kempka2016vizdoom} mini-games designed to expose
+exactly the catastrophic forgetting problem this dissertation
+investigates. The compute regime is fixed by what an Apple Silicon
+laptop can deliver overnight; the methods compared are the three
+regularisation-based baselines reported in the COOM paper --- EWC, L2
+anchoring and MAS --- against the same unregularised SAC fine-tuning
+control. The result is a negative one, and the dissertation argues
+that the negative result is itself informative: the published ranking
+\emph{inverts} when compute is constrained, and the inversion has a
+specific, diagnosable cause.
+
+\section{Background}
+\label{sec:background}
+
+\subsection{Catastrophic forgetting and the regularisation family}
+
+Catastrophic forgetting was first reported in connectionist networks
+in the late 1980s \citep{french1999catastrophic} and remains, three
+decades later, the defining obstacle in continual learning. Among the
+many remedies proposed, three families dominate the literature
+\citep{parisi2019continual}: \emph{regularisation-based} methods,
+which constrain how far parameters may drift from their previous-task
+values; \emph{rehearsal-based} methods, which interleave a small
+amount of stored or generated past data into current training
+\citep{chaudhry2019agem, daniels2022clonex}; and
+\emph{architecture-based} methods, which give each task a
+dedicated subset of parameters \citep{mallya2018packnet}. This
+dissertation focuses on the first family, because it is parameter
+efficient (no replay buffer is stored), architecturally lightweight
+(no parameter masking), and because the COOM paper reports it as the
+strongest non-rehearsal family on the benchmark.
+
+The canonical regularisation method is Elastic Weight Consolidation
+(EWC) \citep{kirkpatrick2017ewc}. After training on task $t$, the
+diagonal of the Fisher information matrix $F^{(t)}$ is computed at
+the converged parameter vector $\theta^*_t$ and used to weight a
+quadratic anchor on subsequent tasks:
+\begin{equation}
+    \mathcal{L}_{\text{EWC}}(\theta) =
+        \mathcal{L}_t(\theta)
+        + \lambda \sum_i F^{(t-1)}_i (\theta_i - \theta^{*}_{t-1, i})^2.
+    \label{eq:ewc}
+\end{equation}
+The Fisher diagonal estimates how much the data log-likelihood
+changes locally with each parameter; intuitively, parameters that
+matter for the source task are pulled back hard, and parameters that
+do not are left free for the new task. L2 anchoring is the same
+penalty with $F$ replaced by the identity. Memory Aware Synapses
+(MAS) \citep{aljundi2018mas} replaces $F$ with the squared $L_2$ norm
+of the gradient of the model output, an unsupervised importance
+estimate that does not need a label or a likelihood.
+
+\subsection{Reinforcement learning, SAC, and the COOM benchmark}
+
+In a reinforcement learning setting the supervised log-likelihood
+underlying \cref{eq:ewc} is unavailable. The COOM implementation
+adapts EWC by computing the Fisher diagonal as the squared Jacobian
+of the actor logits and Q-value heads with respect to the trainable
+parameters, averaged over a small batch of samples drawn from the
+replay buffer at the end of each task. The base RL algorithm is Soft
+Actor-Critic \citep{haarnoja2018sac}, an off-policy maximum-entropy
+method whose stochastic actor and twin critic make it a natural fit
+for continuous-state, discrete-action ViZDoom environments. The CL
+training loop is inherited from the Continual World framework
+\citep{wolczyk2021cwsac}: tasks are presented sequentially, with the
+agent training only on the current task while regularisation
+penalties anchor it to its parameters at the end of each previous
+task.
+
+The COOM benchmark itself \citep{tomilin2024coom} packages eight
+distinct ViZDoom scenarios into Cross-Domain (CD) sequences, in which
+the same scenario is presented with progressively different
+visuals and dynamics, and Cross-Objective (CO) sequences, in which
+each task is a different scenario with a different objective. The
+benchmark reports Average Performance, Forgetting and Forward
+Transfer for each method at $200{,}000$ training steps per task and
+ten random seeds. The headline ranking (Section~6 of the COOM paper)
+places PackNet first, followed by ClonEx-SAC, with the
+regularisation family clustered behind: L2 at $0.64$, MAS at $0.56$,
+EWC at $0.54$. Crucially, every regularisation method scores above
+the unregularised Fine-Tuning control at $0.40$.
+
+\subsection{Plasticity loss in deep RL}
+
+Independent of the CL literature, the deep RL community has reported
+that even a single-task RL agent can lose its ability to learn after
+prolonged training, a phenomenon known as \emph{plasticity loss}
+\citep{lyle2022plasticity, nikishin2022primacy}. The mechanism is
+not yet fully understood, but the practical lesson is that early
+optimisation noise in an RL run is qualitatively different from the
+behaviour at convergence. This will become relevant in
+\Cref{ch:eval}, where the failure mode of low-budget EWC is
+diagnosed as a Fisher matrix that captures early-training
+optimisation noise rather than a converged source-task optimum.
+
+\section{Aims and Requirements}
+\label{sec:aims}
+
+This project has the following primary aim:
+\begin{quote}
+    To empirically characterise the behaviour of regularisation-based
+    continual reinforcement learning methods (EWC, L2, MAS) when the
+    per-task training budget is reduced by an order of magnitude relative
+    to the published COOM benchmark.
+\end{quote}
+
+The aim decomposes into the following numbered requirements, used as
+acceptance criteria throughout the rest of this dissertation.
+
+\begin{enumerate}[label=\textbf{R\arabic*.},leftmargin=2.4em]
+    \item \label{req:pipeline}
+        Reproduce the COOM training pipeline locally on consumer
+        hardware, end to end, for at least one task sequence and one
+        regularisation method.
+    \item \label{req:multimethod}
+        Run a controlled comparison of Fine-Tuning, EWC, L2 and MAS on
+        the same sequence with identical hyperparameters except the
+        regularisation method.
+    \item \label{req:variance}
+        Report seed-level variance for at least one method, providing a
+        bound on the inter-seed offset that could affect the comparison.
+    \item \label{req:diagnose}
+        Diagnose any observed failure modes, distinguishing between
+        implementation bugs, hyperparameter mistuning, and
+        budget-induced behaviour.
+    \item \label{req:reproduce}
+        Release a documented, single-command pipeline that reproduces
+        every figure and table in the dissertation.
+\end{enumerate}
+
+\section{Dissertation Structure}
+\label{sec:structure}
+
+The remainder of this dissertation is organised as follows.
+\Cref{ch:reqs} sets out the project requirements in stakeholder
+terms. \Cref{ch:design} justifies the experimental design that meets
+requirements~\ref{req:pipeline} and~\ref{req:multimethod}, including
+the choice of task sequence, training budget and method set, and
+records the alternatives that were considered and rejected.
+\Cref{ch:impl} documents the technical realisation: the
+Apple-Silicon CPU TensorFlow stack, the sequential experiment queue
+that schedules five overnight runs, and the reproducibility layer
+that satisfies requirement~\ref{req:reproduce}. \Cref{ch:eval}
+reports results addressing requirements~\ref{req:variance}
+and~\ref{req:diagnose}: average training success, per-task curves,
+within-task drift, and the regularisation-loss diagnostic that
+localises the failure mode. \Cref{ch:ethics} discusses project
+ethics. \Cref{ch:concl} maps every finding back to the numbered
+requirements and identifies four concrete directions for follow-up
+work; \Cref{ch:bcs} closes with the BCS criteria checklist and a
+critical first-person reflection.
