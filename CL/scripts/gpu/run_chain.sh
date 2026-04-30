@@ -33,9 +33,13 @@ stamp() {
 
 stamp "CHAIN START on host $(hostname)"
 
-# Phase 1: setup. Skip if /workspace/venv already exists (resumable).
-if [[ -d /workspace/venv && -f /workspace/venv/bin/activate ]]; then
-    stamp "PHASE setup skipped (venv already present)"
+# Phase 1: setup. Skipped only if our venv already imports tensorflow
+# (the marker for a successful prior setup); some RunPod templates ship a
+# bare venv at /workspace/venv that does *not* contain TF, which would
+# otherwise cause the chain to skip a needed setup phase.
+if [[ -x /workspace/venv/bin/python ]] && \
+   /workspace/venv/bin/python -c "import tensorflow" 2>/dev/null; then
+    stamp "PHASE setup skipped (TF already importable in /workspace/venv)"
 else
     stamp "PHASE setup START"
     bash CL/scripts/gpu/setup_runpod.sh > /tmp/setup.log 2>&1
