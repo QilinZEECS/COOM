@@ -33,13 +33,16 @@ stamp() {
 
 stamp "CHAIN START on host $(hostname)"
 
-# Phase 1: setup. Skipped only if our venv already imports tensorflow
-# (the marker for a successful prior setup); some RunPod templates ship a
-# bare venv at /workspace/venv that does *not* contain TF, which would
-# otherwise cause the chain to skip a needed setup phase.
+# Phase 1: setup. Skipped only if TF is importable AND can see at least
+# one GPU (the strict marker for a successful prior setup). Bare TF
+# installs without cuDNN can import but report 0 GPUs, so we test both.
 if [[ -x /workspace/venv/bin/python ]] && \
-   /workspace/venv/bin/python -c "import tensorflow" 2>/dev/null; then
-    stamp "PHASE setup skipped (TF already importable in /workspace/venv)"
+   /workspace/venv/bin/python -c "
+import sys, tensorflow as tf
+gpus = tf.config.list_physical_devices('GPU')
+sys.exit(0 if len(gpus) > 0 else 1)
+" 2>/dev/null; then
+    stamp "PHASE setup skipped (TF already imports + sees a GPU)"
 else
     stamp "PHASE setup START"
     bash CL/scripts/gpu/setup_runpod.sh > /tmp/setup.log 2>&1
