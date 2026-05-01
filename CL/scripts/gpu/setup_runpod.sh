@@ -49,11 +49,48 @@ pip install --no-cache-dir \
     "pandas" "matplotlib" "seaborn" "scipy==1.11.4" \
     "gymnasium==0.28.1" "opencv-python" \
     "wandb"
+# NVIDIA libs that TF 2.11 dlopens at runtime. Most RunPod templates ship
+# the NVIDIA driver (libnvidia-ml, libcuda) but NOT cuDNN or cuBLAS, so
+# TF falls back to CPU. Pulling these wheels into the venv puts the .so
+# files in a predictable place that we add to LD_LIBRARY_PATH below.
+pip install --no-cache-dir \
+    "nvidia-cudnn-cu11==8.6.0.163" \
+    "nvidia-cublas-cu11==11.10.3.66" \
+    "nvidia-cuda-runtime-cu11==11.7.99" \
+    "nvidia-cuda-cupti-cu11==11.7.101" \
+    "nvidia-cufft-cu11==10.9.0.58" \
+    "nvidia-curand-cu11==10.2.10.91" \
+    "nvidia-cusolver-cu11==11.4.0.1" \
+    "nvidia-cusparse-cu11==11.7.4.91" \
+    "nvidia-nccl-cu11==2.14.3"
 pip install --no-cache-dir "vizdoom"
 
 echo "[5/5] COOM in editable mode"
 cd /workspace/COOM
 pip install --no-cache-dir -e .
+
+# Wire NVIDIA shared libs into LD_LIBRARY_PATH so TF can dlopen them.
+# Each `nvidia-*-cu11` wheel installs into site-packages/nvidia/<pkg>/lib;
+# we glob those dirs at activation time.
+NVIDIA_LIB_DIRS=$(python -c "
+import os, glob
+base = os.path.join(os.environ['VIRTUAL_ENV'],
+                    'lib', 'python3.10', 'site-packages', 'nvidia')
+print(':'.join(sorted(glob.glob(os.path.join(base, '*', 'lib')))))
+")
+ACT="/workspace/venv/bin/activate"
+if ! grep -q "NVIDIA_LIB_DIRS" "$ACT"; then
+    cat <<EOSH >> "$ACT"
+
+# --- COOM: NVIDIA shared-lib path for TF 2.11 -----------------------------
+export NVIDIA_LIB_DIRS="${NVIDIA_LIB_DIRS}"
+export LD_LIBRARY_PATH="\${NVIDIA_LIB_DIRS}:\${LD_LIBRARY_PATH:-}"
+EOSH
+fi
+# Apply to the current shell as well (we're still inside the same setup
+# invocation; later scripts will pick it up via venv activate).
+export NVIDIA_LIB_DIRS
+export LD_LIBRARY_PATH="${NVIDIA_LIB_DIRS}:${LD_LIBRARY_PATH:-}"
 
 echo
 echo "verifying TF can see the GPU..."
