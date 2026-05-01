@@ -19,6 +19,7 @@
 set -uo pipefail
 
 cd /workspace/COOM
+export PYTHONPATH="/workspace/COOM:${PYTHONPATH:-}"
 mkdir -p logs/gpu
 
 STATUS=logs/gpu/queue_status.txt

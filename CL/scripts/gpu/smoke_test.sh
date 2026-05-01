@@ -20,7 +20,7 @@ mkdir -p logs/_smoke
 GROUP="_smoke_ewc_5k"
 
 echo "[smoke] launching ${GROUP} ..."
-python CL/run_cl.py \
+PYTHONPATH=. python CL/run_cl.py \
     --sequence CO4 \
     --seed 1 \
     --steps_per_env 5000 \
