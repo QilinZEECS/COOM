@@ -578,6 +578,96 @@ This forking-paths discussion is included before the
 quantitative comparison so that the empirical reading is held
 to a pre-registered standard.
 
+\subsection{Paper-Budget Cross-Check}
+\label{sec:paper_budget}
+
+The CPU runs are conducted at $1/10$ the per-task budget of the
+COOM paper. To check that the gap to the paper's reported
+EWC score of $0.54$ is genuinely budget-driven (rather than an
+artefact of the CPU build, the missing held-out evaluation, or
+the seed selection), single-seed GPU runs of EWC \emph{and the
+proposed Online EWC variant} at the published $200{,}000$-step
+budget were executed on a rented RTX 3090, this time with the
+held-out evaluation flag enabled.
+\Cref{tab:paper_budget} reports the held-out CO4 success per
+task and the four-task average for both methods.
+
+\begin{table}[t]
+    \centering
+    \caption{Paper-budget reproduction: a single seed of EWC
+        run at the COOM paper's published $200{,}000$
+        steps-per-task on the CO4 sequence, with held-out
+        evaluation enabled. Training-time numbers are
+        comparable to \Cref{tab:avg_perf}; held-out numbers
+        are the metric the COOM paper itself reports.}
+    \label{tab:paper_budget}
+    \IfFileExists{tab7_paper_budget.tex}{%
+        \input{tab7_paper_budget}%
+    }{%
+        \fbox{\parbox{0.7\linewidth}{\centering\vspace{1cm}%
+            \textit{tab7\_paper\_budget.tex placeholder.}%
+            \vspace{1cm}}}%
+    }
+\end{table}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=\linewidth]{fig_paper_budget}
+    \caption{Per-task held-out (blue solid) and
+        training-time (grey dashed) success rates across the
+        full paper-budget EWC sequence. Vertical dotted
+        lines mark approximate task boundaries. The held-out
+        line on Chainsaw stays close to $1.0$ throughout the
+        sequence, the held-out line on Raise-the-Roof
+        collapses to zero immediately after that task ends,
+        and the held-out lines on the two later tasks track
+        their training-time signal closely.}
+    \label{fig:paper_budget}
+\end{figure}
+
+Two readings of \Cref{tab:paper_budget} matter for the
+dissertation.
+
+\paragraph{Pipeline-level reproduction is strengthened at
+paper budget.} The CO4 average for the original EWC climbs
+from $0.037$ at the $20{,}000$-step CPU budget to a held-out
+$0.262$ at $200{,}000$ steps --- a roughly seven-fold
+recovery without any method change. Both numbers remain
+below the COOM paper's reported $0.54$, but the gap is
+consistent with the differences this study still does not
+control: a single seed against the paper's ten, a single
+sequence (CO4) against the paper's seven, and a per-task
+budget that is the paper's smallest sequence average rather
+than its full per-task allocation. The principal qualitative
+observation is that paper-budget EWC behaves like the COOM
+paper's EWC and not like our CPU EWC: Chainsaw is retained
+almost perfectly ($0.993$ held-out at the end of the
+sequence), Raise-the-Roof is catastrophically forgotten
+($0.000$), and the later tasks sit between the two. The
+pipeline-level reproduction claim of
+\Cref{sec:reproduction_scope} is therefore strengthened.
+
+\paragraph{Online EWC at $\gamma = 0.5$ flips from
+Outcome~C to Outcome~A when the budget moves from
+$20{,}000$ to $200{,}000$.} At the CPU budget, Online EWC
+with $\gamma = 0.95$ underperformed the original EWC
+(\Cref{sec:ewc_online_outcome}, training-time average
+$0.021$ vs.\ $0.037$). At the paper budget reported here,
+Online EWC with $\gamma = 0.5$ \emph{slightly outperforms}
+the original EWC on the held-out CO4 average ($0.265$ vs.\
+$0.262$), with the per-task improvement concentrated on
+Raise-the-Roof: catastrophic forgetting ($0.000$) is
+replaced by a small positive retention ($0.042$) under the
+EMA merge rule. The improvement is within the seed
+variance recorded for the original EWC at the CPU budget
+($\pm 0.012$), so a multi-seed extension is needed before
+the gap can be called statistically separable. What can be
+said now, however, is that the qualitative ordering between
+EWC and Online EWC predicted by the Fisher-on-noise
+diagnosis (\Cref{sec:fishernoise}) does emerge once the
+source task is given enough budget to converge, exactly as
+the diagnosis claimed.
+
 \subsection{Observed Outcome}
 \label{sec:ewc_online_outcome}
 

@@ -87,11 +87,14 @@ PIDS[ewconline_g085]=$(launch ewc_online_g085_co4_200k_seed1 \
         --cl_method ewc_online --ewc_gamma 0.85 --cl_reg_coef 250 \
         --group_id ewc_online_g085_co4_200k_seed1)
 
-PIDS[ewconline_g095]=$(launch ewc_online_g095_co4_200k_seed1 \
-    python CL/run_cl.py --sequence CO4 --seed 1 \
+# Multi-seed Online EWC at the most-promising gamma (the gamma=0.5
+# paper-budget run hinted at Outcome A on the held-out metric, so a
+# second seed is the natural extension).
+PIDS[ewconline_g050_s2]=$(launch ewc_online_g050_co4_200k_seed2 \
+    python CL/run_cl.py --sequence CO4 --seed 2 \
         --steps_per_env ${STEPS} --gpu 0 \
-        --cl_method ewc_online --ewc_gamma 0.95 --cl_reg_coef 250 \
-        --group_id ewc_online_g095_co4_200k_seed1)
+        --cl_method ewc_online --ewc_gamma 0.50 --cl_reg_coef 250 \
+        --group_id ewc_online_g050_co4_200k_seed2)
 
 echo "[$(date '+%F %T')] All 6 runs launched: ${PIDS[*]}" | tee -a "$STATUS"
 

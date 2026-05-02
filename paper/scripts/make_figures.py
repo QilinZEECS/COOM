@@ -95,8 +95,17 @@ def load_run(group_dir: Path) -> pd.DataFrame:
     df = pd.read_csv(path, sep="\t", skiprows=1, names=names,
                      engine="c", index_col=False)
     df = df[header]
-    df["task"] = df["train/active_env"].astype(int)
-    df["epoch_in_task"] = df.groupby("task").cumcount() + 1
+    # `train/active_env` can be NaN on eval-only epochs (the paper-budget
+    # runs interleave held-out evaluation rows). Drop those rows for the
+    # task-indexed views; the original df is preserved for full-sequence
+    # plots that don't require a task assignment.
+    if df["train/active_env"].notna().any():
+        df = df[df["train/active_env"].notna()].copy()
+        df["task"] = df["train/active_env"].astype(int)
+        df["epoch_in_task"] = df.groupby("task").cumcount() + 1
+    else:
+        df["task"] = -1
+        df["epoch_in_task"] = 0
     return df
 
 
@@ -584,6 +593,145 @@ def fig_ewc_vs_online() -> None:
     print(f"wrote {OUT / 'fig7_ewc_vs_online.pdf'}")
 
 
+def _paper_budget_dir() -> Path | None:
+    """Locate the GPU-synced paper-budget run, if present. Layout is
+    `logs/gpu_sync/ewc_co4_200k_seed1/<timestamp>/`."""
+    cand = ROOT / "logs" / "gpu_sync" / "ewc_co4_200k_seed1"
+    if not cand.is_dir():
+        return None
+    runs = sorted([p for p in cand.iterdir() if p.is_dir()])
+    if not runs:
+        return None
+    if not (runs[-1] / "progress.tsv").exists():
+        return None
+    return cand
+
+
+PAPER_BUDGET_RUNS = {
+    "EWC": ROOT / "logs" / "gpu_sync" / "ewc_co4_200k_seed1",
+    "EWC-Online ($\\gamma$=0.50)": ROOT / "logs" / "gpu_sync" / "ewc_online_g050_co4_200k_seed1",
+    "EWC-Online ($\gamma$=0.95)": ROOT / "logs" / "gpu_sync" / "ewc_online_g095_co4_200k_seed1",
+    "EWC seed 2": ROOT / "logs" / "gpu_sync" / "ewc_co4_200k_seed2",
+    "FT": ROOT / "logs" / "gpu_sync" / "ft_co4_200k_seed1",
+    "EWC-Online ($\gamma$=0.30)": ROOT / "logs" / "gpu_sync" / "ewc_online_g030_co4_200k_seed1",
+    "EWC-Online ($\gamma$=0.70)": ROOT / "logs" / "gpu_sync" / "ewc_online_g070_co4_200k_seed1",
+    "EWC-Online ($\gamma$=0.85)": ROOT / "logs" / "gpu_sync" / "ewc_online_g085_co4_200k_seed1",
+    "EWC-Online (γ=0.50) seed 2": ROOT / "logs" / "gpu_sync" / "ewc_online_g050_co4_200k_seed2",
+}
+
+
+def _heldout_last5(df: pd.DataFrame) -> np.ndarray:
+    test_cols = [
+        "test/stochastic/0/chainsaw-default/success",
+        "test/stochastic/1/raise_the_roof-default/success",
+        "test/stochastic/2/run_and_gun-default/success",
+        "test/stochastic/3/health_gathering-default/success",
+    ]
+    out = np.full(N_TASKS, np.nan)
+    for i, c in enumerate(test_cols):
+        if c in df.columns:
+            sub = df[c].dropna()
+            if len(sub) > 0:
+                out[i] = float(sub.tail(5).mean())
+    return out
+
+
+def make_table_paper_budget() -> None:
+    """Paper-budget reproduction table. Reports held-out (test/stochastic)
+    success per task plus the CO4 average for every method whose
+    GPU-synced run is on disk. Training-time numbers are dropped here
+    because the held-out version is the metric the COOM paper itself
+    reports."""
+    rows = []
+    for label, group_dir in PAPER_BUDGET_RUNS.items():
+        if not _has_complete_run(group_dir) and not _has_partial_run(group_dir):
+            continue
+        try:
+            df = load_run(group_dir)
+        except Exception:
+            continue
+        ho = _heldout_last5(df)
+        if np.all(np.isnan(ho)):
+            continue
+        rows.append((label, ho))
+    if not rows:
+        print("skip tab7_paper_budget (no paper-budget runs on disk)")
+        return
+
+    lines = [
+        r"\begin{tabular}{lcccc|c}",
+        r"\toprule",
+        r"Method & T0 & T1 & T2 & T3 & \textbf{Avg.} \\",
+        r"\midrule",
+    ]
+    for label, ho in rows:
+        cells = " & ".join(
+            "---" if np.isnan(v) else f"{v:.3f}" for v in ho
+        )
+        avg = np.nanmean(ho)
+        avg_cell = "---" if np.isnan(avg) else f"\\textbf{{{avg:.3f}}}"
+        lines.append(f"{label} & {cells} & {avg_cell} \\\\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    (OUT.parent / "tab7_paper_budget.tex").write_text("\n".join(lines))
+    print(f"wrote tab7_paper_budget.tex ({len(rows)} methods)")
+
+
+def _has_partial_run(group_dir: Path) -> bool:
+    """True iff the latest run subdirectory exists with a non-empty
+    progress.tsv (regardless of whether all 4 tasks are present)."""
+    if not group_dir.is_dir():
+        return False
+    runs = sorted([p for p in group_dir.iterdir() if p.is_dir()])
+    if not runs:
+        return False
+    p = runs[-1] / "progress.tsv"
+    return p.exists() and p.stat().st_size > 200
+
+
+def fig_paper_budget_curves() -> None:
+    """Held-out per-task success across the full paper-budget sequence,
+    overlaid on the training-time success of the same run. The held-out
+    line shows catastrophic forgetting: every task sees its success
+    rate climb during its own training phase and then drop, sometimes
+    to zero, once subsequent tasks are introduced."""
+    pb_dir = _paper_budget_dir()
+    if pb_dir is None:
+        print("skip fig_paper_budget_curves (no GPU paper-budget run)")
+        return
+    df = load_run(pb_dir)
+    fig, axes = plt.subplots(1, N_TASKS, figsize=(13, 2.8), sharey=True)
+    test_cols = [
+        "test/stochastic/0/chainsaw-default/success",
+        "test/stochastic/1/raise_the_roof-default/success",
+        "test/stochastic/2/run_and_gun-default/success",
+        "test/stochastic/3/health_gathering-default/success",
+    ]
+    x = np.arange(1, len(df) + 1)
+    for t, (ax, name) in enumerate(zip(axes, CO4_TASKS)):
+        if test_cols[t] in df.columns:
+            y = df[test_cols[t]].to_numpy()
+            ax.plot(x, smooth(y, 5), color="#1f77b4",
+                    label="Held-out", lw=1.6)
+        # Training-time success only meaningful when active_env == t
+        ts = df["train/success"].where(df["train/active_env"] == t).to_numpy()
+        ax.plot(x, smooth(ts, 5), color="#888888",
+                label="Training-time", lw=1.2, linestyle="--", alpha=0.7)
+        for tt in range(1, N_TASKS):
+            ax.axvline(tt * (len(df) // N_TASKS), color="k",
+                       alpha=0.25, lw=0.7, ls=":")
+        ax.set_title(f"Task {t}: {name}", fontsize=10)
+        ax.set_xlabel("Training epoch")
+        ax.grid(alpha=0.3)
+    axes[0].set_ylabel("Success rate")
+    axes[-1].legend(loc="upper right", fontsize=8, frameon=False)
+    fig.suptitle("Paper-budget EWC (200k steps/task, held-out eval)",
+                 fontsize=11, y=1.02)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig9_paper_budget.pdf", bbox_inches="tight")
+    plt.close(fig)
+    print(f"wrote {OUT / 'fig9_paper_budget.pdf'}")
+
+
 def make_table_ewc_online() -> None:
     """Head-to-head summary table: original EWC vs Online EWC.
     Includes the unregularised Fine-Tuning control as the reference
@@ -645,4 +793,6 @@ if __name__ == "__main__":
     fig_action_entropy()
     fig_ewc_vs_online()
     make_table_ewc_online()
+    make_table_paper_budget()
+    fig_paper_budget_curves()
     print("done.")
