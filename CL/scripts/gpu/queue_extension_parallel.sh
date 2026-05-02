@@ -33,6 +33,18 @@ set -uo pipefail
 
 cd /workspace/COOM
 mkdir -p logs/gpu
+
+# Activate the venv that setup_runpod.sh provisioned. Pod restarts wipe
+# /tmp and reset the shell environment, so we must re-source the venv
+# every time this script is invoked rather than rely on inherited PATH.
+if [[ -f /workspace/venv/bin/activate ]]; then
+    # shellcheck disable=SC1091
+    source /workspace/venv/bin/activate
+else
+    echo "ERROR: /workspace/venv missing. Re-run setup_runpod.sh first." >&2
+    exit 1
+fi
+
 export PYTHONPATH="/workspace/COOM:${PYTHONPATH:-}"
 # Multiple TF processes will share the same GPU if each opts into memory
 # growth. Without this, TF defaults to allocating 95% of GPU memory at
