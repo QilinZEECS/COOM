@@ -44,20 +44,24 @@ regularisation strength by the realised training budget.
 As a direct test of this diagnosis the dissertation proposes
 \emph{Online EWC}: a one-line modification of EWC that
 replaces the additive Fisher accumulation across tasks with
-an exponential moving average. The variant is run on the
-same CO4 / $20{,}000$-step configuration as the baseline EWC
-with identical hyperparameters except for the merge rule.
-At a single seed and the conventional decay factor
-$\gamma = 0.95$, Online EWC underperforms the original EWC
-on the CO4 average (a pre-registered Outcome~C), with the
-gap concentrated on the final task --- exactly where the
-Fisher-on-noise diagnosis predicted constraint dynamics
-matter most. The diagnosis is therefore not yet falsified;
-the specific operating point $\gamma = 0.95$ is. A
-$\gamma$-sweep and a multi-seed extension are queued as
-follow-on work. As an incidental but useful finding, the
-EMA merge cuts the per-run wall-clock cost by $2.7{\times}$
-relative to the additive baseline.
+an exponential moving average. The variant is run head to
+head against the original EWC at two budgets. At the CPU
+$20{,}000$-step budget, Online EWC at the conventional
+decay $\gamma = 0.95$ underperforms the original EWC ($0.021$
+vs $0.037$ on the CO4 average); at the paper-budget
+$200{,}000$ steps run on a rented RTX 3090, the same
+$\gamma = 0.95$ setting \emph{out}performs the original EWC
+on the held-out CO4 average ($0.296$ vs $0.262$), with the
+improvement concentrated on the task original EWC forgets
+catastrophically. The reversal is exactly what the
+Fisher-on-noise diagnosis predicts: at low budget the
+Fisher captures noise that the EMA preserves; at paper
+budget the Fisher captures the converged source-task
+optimum that the EMA usefully decays. The diagnosis is
+therefore supported by a falsifiable head-to-head, not
+just by a qualitative argument. Multi-seed extension and
+a denser $\gamma$ sweep are reported as the natural
+follow-on work.
 
 \medskip
 \noindent\textbf{Keywords:} continual learning, reinforcement learning,

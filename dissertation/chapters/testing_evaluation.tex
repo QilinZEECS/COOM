@@ -647,26 +647,46 @@ sequence), Raise-the-Roof is catastrophically forgotten
 pipeline-level reproduction claim of
 \Cref{sec:reproduction_scope} is therefore strengthened.
 
-\paragraph{Online EWC at $\gamma = 0.5$ flips from
-Outcome~C to Outcome~A when the budget moves from
-$20{,}000$ to $200{,}000$.} At the CPU budget, Online EWC
-with $\gamma = 0.95$ underperformed the original EWC
+\paragraph{Online EWC flips from Outcome~C to Outcome~A
+when the budget moves from $20{,}000$ to $200{,}000$.}
+At the CPU budget, Online EWC with $\gamma = 0.95$
+underperformed the original EWC
 (\Cref{sec:ewc_online_outcome}, training-time average
-$0.021$ vs.\ $0.037$). At the paper budget reported here,
-Online EWC with $\gamma = 0.5$ \emph{slightly outperforms}
-the original EWC on the held-out CO4 average ($0.265$ vs.\
-$0.262$), with the per-task improvement concentrated on
-Raise-the-Roof: catastrophic forgetting ($0.000$) is
-replaced by a small positive retention ($0.042$) under the
-EMA merge rule. The improvement is within the seed
-variance recorded for the original EWC at the CPU budget
-($\pm 0.012$), so a multi-seed extension is needed before
-the gap can be called statistically separable. What can be
-said now, however, is that the qualitative ordering between
-EWC and Online EWC predicted by the Fisher-on-noise
-diagnosis (\Cref{sec:fishernoise}) does emerge once the
-source task is given enough budget to converge, exactly as
-the diagnosis claimed.
+$0.021$ vs.\ $0.037$). At the paper budget reported in
+\Cref{tab:paper_budget}, both Online EWC variants
+\emph{outperform} the original EWC on the held-out CO4
+average: $\gamma = 0.50$ reaches $0.265$, $\gamma = 0.95$
+reaches $0.296$. The latter is the same operating point
+that lost at the CPU budget. Two readings of this reversal
+are possible.
+
+The first is mechanical: at $20{,}000$ steps the Fisher
+diagonal of every task is dominated by optimisation noise
+(\Cref{sec:fishernoise}), so the EMA at $\gamma = 0.95$
+spends most of its weight protecting noise; at $200{,}000$
+steps the Fisher of each task is approximately a stable
+local optimum, so the EMA spends most of its weight
+protecting genuine task knowledge. The second reading is
+diagnostic: the same merge rule, with the same
+hyperparameter, swung from worst-of-the-three at low
+budget to best-of-the-three at paper budget, which is
+exactly the prediction the Fisher-on-noise diagnosis made
+in \Cref{sec:fishernoise}. The diagnosis is therefore
+supported by a falsifiable head-to-head experiment, not
+just by a qualitative argument. Per-task, the improvement
+is concentrated on Raise-the-Roof: original EWC forgets it
+catastrophically ($0.000$) while Online EWC at
+$\gamma = 0.95$ retains $0.185$ --- a $13\%$ relative
+gain on the CO4 average from this single task.
+
+The single-seed limitation noted at the CPU budget still
+applies: the gap of $0.034$ between the original EWC and
+Online EWC at $\gamma = 0.95$ is comparable to the
+${\pm} 0.012$ inter-seed spread recorded for original EWC
+at the CPU budget. A multi-seed extension is the first
+item in \Cref{sec:future} and is at the time of writing
+running on the same GPU as a parallel batch of six
+$200{,}000$-step jobs.
 
 \subsection{Observed Outcome}
 \label{sec:ewc_online_outcome}
