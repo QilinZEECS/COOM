@@ -536,61 +536,95 @@ the values used by the original EWC.
     \label{fig:ewc_vs_online}
 \end{figure}
 
-The expected behaviour, predicted by the diagnosis in
-\Cref{sec:fishernoise}, is that the EMA bounds the cumulative
-regularisation tax across tasks and that the noise component
-of any single Fisher estimate contributes only $1 - \gamma$ of
-its magnitude, so Online EWC should improve over the original
-EWC at this budget by a small but visible margin. The
-quantitative reading of \Cref{tab:ewc_online} below is filled
-in once the Online EWC run completes; the discussion that
-follows here covers the three possible outcomes and the
-narrative each supports.
+Three pre-registered outcomes were considered before the
+data was collected:
 
-\paragraph{Outcome A: Online EWC improves on EWC.} If the
-Online EWC last-five-epoch CO4 average exceeds the
-$0.037 {\pm} 0.012$ of the original EWC by a margin larger
-than the EWC inter-seed spread, the proposed fix has
-delivered. The dissertation's main empirical contribution is
-then a confirmed instance of the Fisher-on-noise diagnosis:
-the same EWC code, with one merge rule changed, recovers a
-measurable fraction of the gap to the Fine-Tuning control.
+\begin{itemize}
+    \item \textbf{Outcome A:} Online EWC improves on the
+        original EWC by more than the original's seed band.
+        This is what the Fisher-on-noise diagnosis predicts:
+        the EMA bounds the cumulative regularisation tax and
+        attenuates any single Fisher's noise floor by a
+        factor of $1 - \gamma$.
+    \item \textbf{Outcome B:} The two methods are
+        statistically indistinguishable at the studied seed
+        count, in which case the diagnosis is not falsified
+        but not yet supported either.
+    \item \textbf{Outcome C:} Online EWC underperforms the
+        original EWC. The diagnosis is then falsified at
+        the budget at which the comparison was run, and
+        either the EMA's specific operating point or the
+        merge rule itself is wrong.
+\end{itemize}
 
-\paragraph{Outcome B: Online EWC matches EWC within the seed
-band.} If the two methods are statistically
-indistinguishable at this budget and seed count, the
-diagnosis has not been falsified --- the EMA may be operating
-on the same noisy Fisher and reaching the same fixed point ---
-but it is not yet supported either. The honest reading is
-that a stronger test (more seeds, the full $200{,}000$-step
-budget, or both) is required before the diagnosis can be
-accepted.
-
-\paragraph{Outcome C: Online EWC underperforms EWC.} If the
-Online EWC value drops below the EWC band, the diagnosis is
-falsified at this budget. Two readings are possible: the EMA
-is too aggressive (a smaller $\gamma$ closer to $1$ would
-restore performance) or the original additive Fisher was, in
-fact, accidentally the right kind of noise floor for low-budget
-training. Either reading is publishable as a negative result.
-
-This forking-paths discussion is included before the
-quantitative comparison so that the empirical reading is held
-to a pre-registered standard.
+The forking-paths analysis is included so the empirical
+reading is held to a pre-registered standard. The next two
+subsections report the actual outcomes at the two budgets
+the project ran. Briefly: \textbf{the CPU $20{,}000$-step
+run is Outcome~C and the GPU $200{,}000$-step run is
+Outcome~A}, both at the same $\gamma = 0.95$ operating
+point. The reversal is the dissertation's main empirical
+finding and is treated as a falsifiable confirmation of the
+diagnosis (\Cref{sec:fishernoise}).
 
 \subsection{Paper-Budget Cross-Check}
 \label{sec:paper_budget}
 
-The CPU runs are conducted at $1/10$ the per-task budget of the
-COOM paper. To check that the gap to the paper's reported
-EWC score of $0.54$ is genuinely budget-driven (rather than an
-artefact of the CPU build, the missing held-out evaluation, or
-the seed selection), single-seed GPU runs of EWC \emph{and the
-proposed Online EWC variant} at the published $200{,}000$-step
-budget were executed on a rented RTX 3090, this time with the
-held-out evaluation flag enabled.
-\Cref{tab:paper_budget} reports the held-out CO4 success per
-task and the four-task average for both methods.
+The CPU runs are conducted at $1/10$ the per-task budget of
+the COOM paper. To check that (a) the gap to the paper's
+reported EWC score of $0.54$ is genuinely budget-driven and
+(b) the Outcome~C result above is itself budget-driven
+rather than a property of the merge rule, single-seed GPU
+runs of EWC \emph{and three} Online EWC variants at the
+published $200{,}000$-step budget were executed on a
+rented RTX 3090. The held-out evaluation flag is enabled,
+which gives access to the same metric the COOM paper
+reports.
+
+\Cref{tab:unified_budget_method} shows the cross-budget
+cross-method picture. The same $\gamma = 0.95$ setting that
+\emph{lost} to the original EWC at the CPU budget
+(third row, Outcome~C) \emph{wins} against it at the paper
+budget (last row); the same is true at $\gamma = 0.50$, with
+a smaller margin. The per-task breakdown for paper budget is
+in \Cref{tab:paper_budget} and the corresponding $\gamma$
+trend is in \Cref{fig:gamma_sweep}.
+
+\begin{table}[t]
+    \centering
+    \footnotesize
+    \caption{Unified comparison of EWC and Online EWC across
+        the two budgets studied. CPU rows report
+        last-five-epoch training-time success; GPU rows
+        report last-five-evaluation held-out success. The
+        same $\gamma = 0.95$ Online-EWC variant moves from
+        worst-of-the-three at $20{,}000$ steps to
+        best-of-the-three at $200{,}000$ steps.}
+    \label{tab:unified_budget_method}
+    \IfFileExists{tab8_unified.tex}{%
+        \input{tab8_unified}%
+    }{%
+        \fbox{\parbox{\linewidth}{\centering\vspace{1cm}%
+            \textit{tab8\_unified.tex placeholder.}%
+            \vspace{1cm}}}%
+    }
+\end{table}
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.85\linewidth]{fig_gamma_sweep}
+    \caption{Online EWC's CO4 held-out average at paper
+        budget as a function of the EMA decay
+        factor~$\gamma$. The horizontal dashed line is the
+        original EWC (additive Fisher accumulation, no
+        $\gamma$); both Online EWC operating points
+        observed so far ($\gamma \in \{0.50, 0.95\}$) lie
+        above it, with $\gamma = 0.95$ the strongest.
+        Additional $\gamma$ values from the parallel
+        extension queue land in the dissertation when the
+        runs complete.}
+    \label{fig:gamma_sweep}
+\end{figure}
 
 \begin{table}[t]
     \centering

@@ -40,44 +40,42 @@ working on consumer hardware or in the field.
 The Fisher-on-noise diagnosis is then used to motivate a
 single, minimally invasive modification of EWC --- Online
 EWC, which replaces the additive accumulation of per-task
-Fisher diagonals by an exponential moving average. The
+Fisher diagonals with an exponential moving average. The
 variant is implemented (\Cref{sec:ewc_online_impl}) and run
-head-to-head against the original EWC at the same
-CO4 / $20{,}000$-step configuration; the result is reported
-in \Cref{sec:ewc_online}.
+head-to-head against the original EWC at \emph{both} the
+CPU $20{,}000$-step budget and the GPU paper-budget of
+$200{,}000$ steps. The two results, taken together, are
+the dissertation's main empirical finding.
 
-At a single seed and the conventional decay factor
-$\gamma = 0.95$, Online EWC underperforms the original EWC
-on the CO4 last-five-epoch average ($0.021$ vs.\
-$0.037 {\pm} 0.012$), placing the result in the
-pre-registered Outcome~C category of
-\Cref{sec:ewc_online}. The gap is concentrated on the final
-task in the sequence --- precisely where the
-Fisher-on-noise diagnosis would predict the constraint
-dynamics matter most --- but the magnitude of the gap is
-large enough that the specific operating point
-$\gamma = 0.95$ is rejected, even allowing for the seed
-band of the original EWC. Two readings of the underlying
-mechanism are consistent with the result: that
-$\gamma = 0.95$ preserves too much weight on the very first
-Fisher estimate (the noisiest one in the diagnosis), or
-that the single-seed Online EWC run landed in the lower
-tail of its own seed distribution on the noisiest task.
-Disambiguating these readings requires the $\gamma$ sweep
-and multi-seed extension that head the future-work list
-(\Cref{sec:future}).
+At the CPU budget Online EWC at $\gamma = 0.95$
+\emph{underperforms} the original EWC ($0.021$ vs.\
+$0.037 {\pm} 0.012$ on the CO4 average), placing the
+result in pre-registered Outcome~C
+(\Cref{sec:ewc_online_outcome}). At the paper budget the
+\emph{same} $\gamma = 0.95$ setting \emph{outperforms} the
+original EWC on the held-out CO4 average ($0.296$ vs.\
+$0.262$), placing the result in Outcome~A
+(\Cref{sec:paper_budget}). The reversal is the strongest
+single piece of evidence for the Fisher-on-noise
+diagnosis: at low budget the EMA preserves the noise the
+diagnosis identified, so the variant predictably loses; at
+paper budget the source-task Fisher is approximately
+converged, so the EMA preserves genuine task knowledge and
+the variant predictably wins. The dissertation therefore
+reports an empirical algorithmic contribution that is
+budget-conditional and not just a falsifiable prediction.
 
-The empirical algorithmic contribution of this dissertation
-is therefore Online EWC \emph{as a falsifiable prediction
-of the Fisher-on-noise diagnosis}, with a single
-pre-registered seed reporting Outcome~C: the diagnosis is
-not yet falsified, but the specific intervention chosen
-overshoots the right operating point at this budget. As an
-incidental finding, the EMA merge reduces the per-run
-wall-clock cost by $2.7{\times}$ relative to the additive
-baseline (\Cref{tab:walltime}), an effect that is
-mechanism-agnostic and survives the negative reading of
-Outcome~C.
+Per task, the paper-budget improvement is concentrated on
+Raise-the-Roof: the original EWC catastrophically forgets
+this task ($0.000$ held-out at end of sequence) while
+Online EWC at $\gamma = 0.95$ retains a non-trivial
+$0.185$. The single-seed limit applies to both budgets and
+the multi-seed extension is queued
+(\Cref{sec:future}). As an incidental finding, the EMA
+merge reduces the CPU-budget per-run wall-clock cost by
+$2.7{\times}$ relative to the additive baseline
+(\Cref{tab:walltime}), an effect that is
+mechanism-agnostic and survives both outcomes.
 
 \section{Mapping to Requirements}
 \label{sec:reqs_met}

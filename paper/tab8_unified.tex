@@ -1,0 +1,11 @@
+\begin{tabular}{lcccc|cl}
+\toprule
+Method (budget, metric) & T0 & T1 & T2 & T3 & \textbf{Avg.} & Seeds \\
+\midrule
+EWC additive (CPU 20k, train-time) & 0.028 & 0.056 & 0.000 & 0.063 & \textbf{0.037} & 3 seeds \\
+Online EWC ($\gamma$=0.95, CPU 20k, train-time) & 0.035 & 0.045 & 0.000 & 0.005 & \textbf{0.021} & 1 seed \\
+EWC (GPU 200k, held-out) & 0.993 & 0.000 & 0.045 & 0.011 & \textbf{0.262} & 1 seed \\
+EWC-Online ($\gamma$=0.50) (GPU 200k, held-out) & 0.998 & 0.042 & 0.000 & 0.019 & \textbf{0.265} & 1 seed \\
+EWC-Online ($\gamma$=0.95) (GPU 200k, held-out) & 1.000 & 0.185 & 0.000 & 0.000 & \textbf{0.296} & 1 seed \\
+\bottomrule
+\end{tabular}

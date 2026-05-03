@@ -636,6 +636,128 @@ def _heldout_last5(df: pd.DataFrame) -> np.ndarray:
     return out
 
 
+def fig_gamma_sweep() -> None:
+    """Online EWC CO4 average vs the EMA decay factor gamma, with the
+    additive-Fisher EWC baseline as a horizontal reference. Picks up
+    every Online-EWC paper-budget run on disk and plots them as
+    individual points with seed labels where multi-seed exists."""
+    points: list[tuple[float, float, str]] = []  # (gamma, avg, label)
+    ewc_baseline_avg: float | None = None
+    ft_avg: float | None = None
+    for label, group_dir in PAPER_BUDGET_RUNS.items():
+        if not (_has_complete_run(group_dir) or _has_partial_run(group_dir)):
+            continue
+        try:
+            df = load_run(group_dir)
+        except Exception:
+            continue
+        ho = _heldout_last5(df)
+        if np.all(np.isnan(ho)):
+            continue
+        avg = float(np.nanmean(ho))
+        if "EWC-Online" in label:
+            # extract gamma from label like "EWC-Online ($\gamma$=0.50)"
+            import re
+            m = re.search(r"=([\d.]+)", label)
+            if m:
+                points.append((float(m.group(1)), avg, label))
+        elif label == "EWC":
+            ewc_baseline_avg = avg
+        elif label == "FT":
+            ft_avg = avg
+    if not points:
+        print("skip fig_gamma_sweep (no Online EWC paper-budget runs)")
+        return
+    points.sort()
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    fig, ax = plt.subplots(figsize=(6.4, 3.2))
+    ax.plot(xs, ys, "o-", color="#ff7f0e", lw=1.6, markersize=8,
+            label="Online EWC")
+    if ewc_baseline_avg is not None:
+        ax.axhline(ewc_baseline_avg, color="#1f77b4", lw=1.4,
+                   linestyle="--",
+                   label=f"EWC additive (baseline): {ewc_baseline_avg:.3f}")
+    if ft_avg is not None:
+        ax.axhline(ft_avg, color="#888888", lw=1.4, linestyle=":",
+                   label=f"Fine-Tuning: {ft_avg:.3f}")
+    ax.set_xlabel(r"EMA decay $\gamma$")
+    ax.set_ylabel("Held-out CO4 average")
+    ax.set_title("Online EWC: CO4 average vs $\\gamma$ at paper budget (200k)")
+    ax.legend(frameon=False, loc="lower right", fontsize=9)
+    ax.grid(alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(OUT / "fig10_gamma_sweep.pdf", bbox_inches="tight")
+    plt.close(fig)
+    print(f"wrote {OUT / 'fig10_gamma_sweep.pdf'}")
+
+
+def make_table_unified() -> None:
+    """Unified comparison: EWC and Online EWC at both budgets in a single
+    table. Designed to make the budget-flip (Outcome C at 20k -> Outcome
+    A at 200k) visible at a glance."""
+    rows = []
+    # 20k CPU rows: train/success last-5 averages, no held-out available
+    cpu_seed_runs_ewc = stack_method(RUNS["EWC"])
+    cpu_ewc_means = np.stack([
+        last_k_per_task(df, "train/success", 5)
+        for df in cpu_seed_runs_ewc.values()
+    ])
+    rows.append((
+        "EWC additive (CPU 20k, train-time)",
+        np.nanmean(cpu_ewc_means, axis=0),
+        np.nanmean(np.nanmean(cpu_ewc_means, axis=0)),
+        f"{cpu_ewc_means.shape[0]} seeds",
+    ))
+    if "EWC-Online" in RUNS:
+        oe = stack_method(RUNS["EWC-Online"])
+        oe_means = np.stack([
+            last_k_per_task(df, "train/success", 5)
+            for df in oe.values()
+        ])
+        rows.append((
+            r"Online EWC ($\gamma$=0.95, CPU 20k, train-time)",
+            np.nanmean(oe_means, axis=0),
+            np.nanmean(np.nanmean(oe_means, axis=0)),
+            f"{oe_means.shape[0]} seed",
+        ))
+    # 200k held-out rows
+    for label, group_dir in PAPER_BUDGET_RUNS.items():
+        if not (_has_complete_run(group_dir) or _has_partial_run(group_dir)):
+            continue
+        try:
+            df = load_run(group_dir)
+        except Exception:
+            continue
+        ho = _heldout_last5(df)
+        if np.all(np.isnan(ho)):
+            continue
+        avg = float(np.nanmean(ho))
+        rows.append((
+            f"{label} (GPU 200k, held-out)",
+            ho,
+            avg,
+            "1 seed",
+        ))
+
+    lines = [
+        r"\begin{tabular}{lcccc|cl}",
+        r"\toprule",
+        r"Method (budget, metric) & T0 & T1 & T2 & T3 & "
+        r"\textbf{Avg.} & Seeds \\",
+        r"\midrule",
+    ]
+    for label, vec, avg, seeds in rows:
+        cells = " & ".join(
+            "---" if np.isnan(v) else f"{v:.3f}" for v in vec
+        )
+        avg_cell = "---" if np.isnan(avg) else f"\\textbf{{{avg:.3f}}}"
+        lines.append(f"{label} & {cells} & {avg_cell} & {seeds} \\\\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    (OUT.parent / "tab8_unified.tex").write_text("\n".join(lines))
+    print(f"wrote tab8_unified.tex ({len(rows)} rows)")
+
+
 def make_table_paper_budget() -> None:
     """Paper-budget reproduction table. Reports held-out (test/stochastic)
     success per task plus the CO4 average for every method whose
@@ -795,4 +917,6 @@ if __name__ == "__main__":
     make_table_ewc_online()
     make_table_paper_budget()
     fig_paper_budget_curves()
+    make_table_unified()
+    fig_gamma_sweep()
     print("done.")
